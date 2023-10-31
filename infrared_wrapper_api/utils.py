@@ -3,7 +3,7 @@ import json
 import logging
 from enum import Enum
 
-from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_all_project_for_user
+from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_all_projects_for_user
 from infrared_wrapper_api.infrared_wrapper.infrared.models import ProjectStatus
 from infrared_wrapper_api.dependencies import cache
 
@@ -24,16 +24,33 @@ def load_json_file(path: str) -> dict:
         return json.loads(f.read())
 
 
-def find_idle_infrared_project(infrared_user_json: dict) -> str:
+def update_infrared_project_status_in_redis(project_uuid: str, is_busy:bool):
+    """
+    marks whether a infrared project can be used or is busy with some other simulation
+    """
+    cache.put(key=project_uuid, value={"is_busy": is_busy})
+
+
+def find_idle_infrared_project() -> str:
 
     """
     TODO wait for project to become available if none.
     TODO should probably be a function  in the user file!
     TODO or better to be in utils??
     """
-    all_project_keys = get_all_project_for_user(infrared_user_json["uuid"], infrared_user_json["token"]).keys()
+    all_project_keys = get_all_projects_for_user().keys()
+    print(f"all project keys {all_project_keys}")
+
+    if not all_project_keys:
+        raise ValueError("No projects exist at infrared endpoint")
 
     for project_key in all_project_keys:
         project_status: ProjectStatus = cache.get(key=project_key)
-        if project_status or not project_status.is_busy:
+        print(project_status)
+        if not project_status or not project_status["is_busy"]:
+            update_infrared_project_status_in_redis(project_uuid=project_key, is_busy=True)
+            print(f" using infrared project {project_key}")
             return project_key
+
+    # TODO wait until is is idle. with luis retry method?
+    raise NotImplementedError("implement waiting for idle proejcts")

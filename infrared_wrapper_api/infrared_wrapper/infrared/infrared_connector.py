@@ -1,56 +1,74 @@
 import os
 import requests
 import time
+from typing import List
 
 from infrared_wrapper_api.infrared_wrapper.infrared import queries
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import get_value
-
+from infrared_wrapper_api.config import settings
 
 # make query to infrared api
 
 # TODO async?
 # can async requests be executed at bulk and each requests gets repeated until successful / or finally fails after 30 tries
 # and then obtain a status whether all requests have finished and how many have finally failed
-# should be used for buildings updating and deletingdi
+# should be used for buildings updating and deleting
 
 
-def infrared_user_login(username, password) -> tuple[str]:
-    url = os.getenv("INFRARED_URL")  # or passed?
-    user_creds = {"username": username, "password": password}
-    request = requests.post(os.getenv("INFRARED_URL"), json=user_creds)
+class InfraredConnector:
 
-    if request.status_code != 200:
-        raise Exception(
-            f"Failed to login to infrared by returning code of {request.status_code}"
-        )
-    # get the auth token from the returned cookie
-    print(request.cookies)
-    uuid = request.cookies.get("InFraReDClientUuid")
-    token = "InFraReD=" + request.cookies.get("InFraReD")
+    def __init__(self):
+        self.user_uuid = ""
+        self.token = ""
+        self.infrared_user_login()
 
-    return uuid, token
 
-def execute_query(query: str, token:str):
-    """
-        Make query response
-        auth token needs to be send as cookie
-    """
-    print(f"Query: {query.split('(')[0]}")
-    start_time = time.time()
+    def infrared_user_login(self) -> tuple[str]:
+        user_creds = {
+            "username": settings.infrared_communication.user,
+            "password": settings.infrared_communication.password
+        }
+        request = requests.post(os.getenv("INFRARED_URL"), json=user_creds)
 
-    # AIT requested a sleep between the requests. To let their servers breath a bit.
-    token_cookie = token
-    url = os.getenv("INFRARED_URL") + '/api'
-    headers = {'Cookie': token_cookie, 'origin': os.getenv('INFRARED_URL')}
-    request = requests.post(url, json={'query': query}, headers=headers)
+        if request.status_code != 200:
+            raise Exception(
+                f"Failed to login to infrared by returning code of {request.status_code}"
+            )
+        else:
+            print("LOGIN TO INFRARED SUCCESSFUL")
+        # get the auth token from the returned cookie
+        print(request.cookies)
 
-    if request.status_code != 200:
-        raise Exception(
-            f"Query failed to run by returning code of {request.status_code}. URL: {url} , Query: {query}, Headers: {headers}"
-        )
-    print(f"query execution time: {time.time() - start_time}")
-    return request.json()
+        self.user_uuid = request.cookies.get("InFraReDClientUuid")
+        self.token = "InFraReD=" + request.cookies.get("InFraReD")
 
+
+
+    def execute_query(self, query: str):
+        """
+            Make query response
+            auth token needs to be sent as cookie
+        """
+        start_time = time.time()
+
+        # AIT requested a sleep between the requests. To let their servers breath a bit.
+        url = os.getenv("INFRARED_URL") + '/api'
+        headers = {'Cookie': self.token, 'origin': os.getenv('INFRARED_URL')}
+        request = requests.post(url, json={'query': query}, headers=headers)
+
+        if request.status_code == 401:
+            self.infrared_user_login()
+            self.execute_query(query)
+
+        if request.status_code != 200:
+            raise Exception(
+                f"Query failed to run by returning code of {request.status_code}. URL: {url} , Query: {query}, Headers: {headers}"
+            )
+        print(f"Query: {query.split('(')[0]} ||| execution time: {time.time() - start_time}")
+        return request.json()
+
+
+connector = InfraredConnector()
 
 # for now every calcuation request creates a new infrared project, as calculation bbox is set on project level
 def create_new_project(self):
@@ -99,14 +117,13 @@ def create_new_project(self):
 
 
 
-def delete_project(user_uuid, user_token, project_uuid: str):
-    execute_query(queries.delete_project_query(user_uuid, project_uuid), user_token)
+def delete_project(project_uuid: str):
+    connector.execute_query(queries.delete_project_query(user_uuid, project_uuid))
 
 
-def create_new_building(snapshot_uuid, user_token, new_building):
-
+def create_new_building(snapshot_uuid, new_building):
     query = queries.create_building_query(new_building, snapshot_uuid)
-    new_bld_response = execute_query(query, user_token)
+    new_bld_response = connector.execute_query(query)
     uuid = get_value(new_bld_response, ["data", "createNewBuilding", "uuid"])
 
     if not uuid:
@@ -118,29 +135,68 @@ def create_new_building(snapshot_uuid, user_token, new_building):
         # create_new_building(new_building)
 
 
-def delete_building(self, building_uuid):
-    execute_query(
-        queries.delete_building(self.snapshot_uuid, building_uuid), self.user
+def create_new_buildings(snapshot_uuid, new_buildings):
+    query = queries.create_buildings(snapshot_uuid, new_buildings)
+    new_bld_response = connector.execute_query(query)
+    uuid = get_value(new_bld_response, ["data", "createNewBuilding", "uuid"])
+
+    if not uuid:
+        print(
+            f"could not create building! {new_bld_response}",
+        )
+        print(f"Query {query}")
+        # TODO retry until it works
+        # create_new_building(new_building)
+
+
+def get_all_building_uuids_for_project(project_uuid: str, snapshot_uuid: str) -> List[str]:
+    snapshot_geometries = connector.execute_query(
+        queries.get_geometry_objects_in_snapshot_query(snapshot_uuid)
     )
 
+    building_path = [
+        "data",
+        "getSnapshotGeometryObjects",
+        "infraredSchema",
+        "clients",
+        connector.user_uuid,
+        "projects",
+        project_uuid,
+        "snapshots",
+        snapshot_uuid,
+        "buildings",
+    ]
+    try:
+        buildings = get_value(snapshot_geometries, building_path)
+    except Exception:
+        print(f"could not get buildings for project uuid {project_uuid}")
+        return {}
+
+    return buildings.keys()
 
 
-def activate_sunlight_analysis_capability(user_uuid, user_token, project_uuid: str):
-    query = queries.activate_sun_service_query(
-        user_uuid, project_uuid
+
+def delete_buildings(snapshot_uuid: str, building_uuids: List[str]):
+    response = connector.execute_query(
+        queries.delete_buildings(snapshot_uuid, building_uuids)
     )
-    response = execute_query(query, user_token)
-    print("activate sunlight hours calc service", response)
+
+    all_success = all(entry.get("success", False) for entry in response["data"].values())
+
+    if not all_success:
+        print(f"COULD NOT DELETE ALL BUILINGS {response.json()}")
+        # TODO delete project then?
 
 
-def get_all_project_for_user(user_uuid: str, user_token: str):
-    query = queries.get_projects_query(user_uuid)
+
+def get_all_projects_for_user():
+    query = queries.get_projects_query(connector.user_uuid)
 
     projects = {}
     try:
         projects = get_value(
-            execute_query(query, user_token),
-            ["data", "getProjectsByUserUuid", "infraredSchema", "clients", user_uuid, "projects"]
+            connector.execute_query(query),
+            ["data", "getProjectsByUserUuid", "infraredSchema", "clients", connector.user_uuid, "projects"]
         )
 
     except KeyError:
@@ -149,12 +205,23 @@ def get_all_project_for_user(user_uuid: str, user_token: str):
     return projects
 
 
-def get_root_snapshot_id(project_uuid, user_uuid, user_token):
+def get_root_snapshot_id(project_uuid):
     query = queries.get_snapshot_query(project_uuid)
 
-    snapshot = execute_query(query, user_token)
-    graph_snapshots_path = ["data", "getSnapshotsByProjectUuid", "infraredSchema", "clients",user_uuid,
+    snapshot = connector.execute_query(query)
+    graph_snapshots_path = ["data", "getSnapshotsByProjectUuid", "infraredSchema", "clients", connector.user_uuid,
                             "projects", project_uuid, "snapshots"]
 
     return list(get_value(snapshot, graph_snapshots_path).keys())[0]  # root snapshot is the first (and only) one.
     # the root snapshot of the infrared project will be used to create buildings and perform analysis
+
+
+
+
+def activate_sunlight_analysis_capability(user_uuid, user_token, project_uuid: str):
+    query = queries.activate_sun_service_query(
+        user_uuid, project_uuid
+    )
+    response = connector.execute_query(query, user_token)
+    print("activate sunlight hours calc service", response)
+

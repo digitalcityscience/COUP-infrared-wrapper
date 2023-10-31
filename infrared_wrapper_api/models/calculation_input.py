@@ -10,23 +10,6 @@ JSONS_DIR = Path(__file__).parent / "jsons"
 BUILDINGS = JSONS_DIR / "buildings.json"
 
 
-class InfraredSimulationTask(ABC):
-    buildings: dict
-
-    @abstractmethod
-    def hash(self):
-        pass
-
-    @abstractmethod
-    def celery_key(self):
-        pass
-
-    def get_buildings(self):
-        return self.buildings
-
-    # TODO should have a set/get results method?
-
-
 class SimulationScenario(BaseModelStrict):
     buildings: dict
 
@@ -53,6 +36,28 @@ class WindSimulationInput(SimulationScenario):
         )
 
 
+class SunSimulationInput(SimulationScenario):
+    class Config:
+        schema_extra = {
+            "example": {
+                "buildings": load_json_file(BUILDINGS),
+            }
+        }
+
+
+# put project area there?
+class InfraredSimulationTask(BaseModelStrict):
+    simulation_area: dict  # geojson with area bbox
+
+    @abstractmethod
+    def hash(self):
+        pass
+
+    @abstractmethod
+    def celery_key(self):
+        pass
+
+
 class WindSimulationTask(InfraredSimulationTask, WindSimulationInput):
 
     @property
@@ -71,15 +76,6 @@ class WindSimulationTask(InfraredSimulationTask, WindSimulationInput):
     @property
     def celery_key(self) -> str:
         return f"{self.hash}_{self.settings_hash}"
-
-
-class SunSimulationInput(SimulationScenario):
-    class Config:
-        schema_extra = {
-            "example": {
-                "buildings": load_json_file(BUILDINGS),
-            }
-        }
 
 
 class SunSimulationTask(InfraredSimulationTask, SunSimulationInput):

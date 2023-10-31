@@ -1,63 +1,88 @@
-import shapely
+import os
+import json
+import pytest
+from unittest.mock import patch
 
-from shapely.geometry import Polygon
-
-from infrared_wrapper_api.infrared_wrapper.infrared.infrared_user import InfraredUser
-from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject, create_new_project_at_infrared
-from infrared_wrapper_api.infrared_wrapper.infrared.models import InfraredProjectModel
-
-from infrared_wrapper_api.config import settings
-
-
-def test_create_user():
-
-    user = InfraredUser()
-
-    assert type(user.uuid) == str
-    assert type(user.token) == str
-
-    return user
+from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_all_building_uuids_for_project, \
+    InfraredConnector
+from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject
+from infrared_wrapper_api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis
 
 
-def test_create_project(user: InfraredUser):
-    bbox = Polygon([
-          [
-            [
-              9.986072480974428,
-              53.516982783075576
-            ],
-            [
-              9.986072480974428,
-              53.51663660678955
-            ],
-            [
-              9.986751729573513,
-              53.51663660678955
-            ],
-            [
-              9.986751729573513,
-              53.516982783075576
-            ],
-            [
-              9.986072480974428,
-              53.516982783075576
-            ]
-          ]
-        ])
-
-    project_data = create_new_project_at_infrared(
-        user,
-        "test_project",
-        bbox,
-        resolution=settings.infrared_calculation.analysis_resolution
-    )
-
-    project = InfraredProject(user, project_data)
+@pytest.fixture
+def sample_building_data():
+    print(os.getcwd())
+    with open("../../models/jsons/buildings.json", "r") as f:
+        return json.load(f)
 
 
+@pytest.fixture
+def sample_simulation_area():
+    print(os.getcwd())
+    with open("../../models/jsons/simulation_area.json", "r") as f:
+        return json.load(f)
 
-if __name__ == "__main__":
 
-    user = test_create_user()
-    test_create_project(user)
+def get_idle_project_id():
+    # Mock functions
+    with patch("infrared_wrapper_api.utils.update_infrared_project_status_in_redis") as mock_update_status, \
+            patch("infrared_wrapper_api.dependencies.cache.put") as mock_cache_put, \
+            patch("infrared_wrapper_api.dependencies.cache.get", return_value={"is_busy": False}) as mocK_cache_get:
+        return find_idle_infrared_project()
 
+
+def test_login():
+    connector = InfraredConnector()
+    connector.infrared_user_login()
+
+    assert connector.token is not None
+    assert connector.user_uuid is not None
+
+
+def test_getting_idle_project():
+    # Mock functions that require a redis instance to run.
+    with patch("infrared_wrapper_api.utils.update_infrared_project_status_in_redis") as mock_update_status, \
+            patch("infrared_wrapper_api.dependencies.cache.put") as mock_cache_put, \
+            patch("infrared_wrapper_api.dependencies.cache.get", return_value={"is_busy": False}) as mocK_cache_get:
+        project_uuid = find_idle_infrared_project()
+
+        # Assertions
+        mocK_cache_get.assert_called()
+        mock_update_status.assert_called_once_with(project_uuid=project_uuid, is_busy=True)
+        assert project_uuid is not None
+
+
+def test_create_infrared_project():
+    # create buildings at infrared
+    project_uuid = get_idle_project_id()
+    project = InfraredProject(project_uuid)
+
+    assert project.snapshot_uuid is not None
+
+
+def test_update_and_delete_buildings_at_infrared(sample_building_data, sample_simulation_area):
+    project_uuid = get_idle_project_id()
+    project = InfraredProject(project_uuid)
+    project.update_buildings_at_infrared(sample_building_data, sample_simulation_area)
+
+    # Assertions
+    building_count = len(sample_building_data["features"])
+    assert len(get_all_building_uuids_for_project(project.project_uuid, project.snapshot_uuid)) == building_count
+
+    # Delete the buildings again
+    project = InfraredProject(project_uuid)
+    project.delete_all_buildings()
+    assert len(get_all_building_uuids_for_project(project.project_uuid, project.snapshot_uuid)) == 0
+
+
+def test_set_project_busy_status_false():
+    project_uuid = get_idle_project_id()
+
+    with patch("infrared_wrapper_api.dependencies.cache.put") as mock_cache_put:
+        # set project as not busy.
+        update_infrared_project_status_in_redis(project_uuid, False)
+        mock_cache_put.assert_called_once_with(key=project_uuid, value={'is_busy': False})
+
+
+
+# TODO test triggerin simulation and fetching result.

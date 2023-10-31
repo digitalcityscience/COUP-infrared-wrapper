@@ -6,7 +6,6 @@ from fastapi.encoders import jsonable_encoder
 
 from infrared_wrapper_api import tasks
 from infrared_wrapper_api.dependencies import cache, celery_app
-from infrared_wrapper_api.infrared_wrapper.infrared.infrared_user import InfraredUser
 from infrared_wrapper_api.models.calculation_input import WindSimulationInput, WindSimulationTask, SunSimulationInput, \
     SunSimulationTask
 
@@ -17,7 +16,6 @@ router = APIRouter(tags=["tasks"])
 
 # TODO use OGC naming already!
 
-infrared_user = InfraredUser()
 
 @router.post("/task/wind")
 async def process_task_wind(
@@ -33,7 +31,7 @@ async def process_task_wind(
     logger.info(
         f"Result with key: {calculation_task.celery_key} not found in cache. Starting calculation ..."
     )
-    result = tasks.compute_task_wind.delay(jsonable_encoder(calculation_task), jsonable_encoder(infrared_user))
+    result = tasks.compute_task_wind.delay(jsonable_encoder(calculation_task))
     return {"taskId": result.id}\
 
 

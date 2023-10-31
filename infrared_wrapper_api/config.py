@@ -45,8 +45,8 @@ class InfraredCommunication(BaseSettings):
 
 
 class InfraredCalculation(BaseSettings):
-    max_bbox_size: int = Field(default=500)  # bbox size in meters
-    bbox_buffer: int = Field(default=100)  # buffer will be trimmed from result as results at bbox edges are faulty
+    true_simulation_area_size: int = Field(default=400)  # bbox size in meters
+    simulation_area_buffer: int = Field(default=50)  # buffer will be trimmed from result as results at bbox edges are faulty
     analysis_resolution: int = Field(default=10)  # resolution of analysis in meters
 
 

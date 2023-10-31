@@ -5,10 +5,9 @@ from shapely.geometry import Polygon
 import geopandas
 
 import infrared_wrapper_api.infrared_wrapper.infrared.queries as queries
-from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import execute_query, create_new_building, \
-    get_root_snapshot_id
+from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import create_new_building, \
+    get_root_snapshot_id, get_all_building_uuids_for_project, delete_buildings, create_new_buildings
 from infrared_wrapper_api.infrared_wrapper.infrared.models import InfraredProjectModel
-from infrared_wrapper_api.infrared_wrapper.infrared.infrared_user import InfraredUser
 from infrared_wrapper_api.config import InfraredCalculation
 from infrared_wrapper_api.models.calculation_input import WindSimulationInput
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import get_value
@@ -21,28 +20,47 @@ config = None
 class InfraredProject:
     def __init__(
             self,
-            infrared_user: dict,
             # project_data: InfraredProjectModel
             project_uuid: str,
     ):
         # set properties
-        self.user_uuid = infrared_user["uuid"]
-        self.user_token = infrared_user["token"]
         self.project_uuid = project_uuid
 
-        self.snapshot_uuid = get_root_snapshot_id(project_uuid, self.user_uuid, self.user_token)
+        self.snapshot_uuid = get_root_snapshot_id(project_uuid)
 
     # TODO wie machen wir das am besten mit wind vs sun simulation. 
     #  Sollte sichergestellt sein, das buildigns up to date sind + aber nicht doppelt updaten.
     # ich glaub es ist am besten das direkt in simulate.py zu machen. Dort erst update buildings aufrufen und dann die calc triggern
 
-    def update_buildings_at_endpoint(self, buildings):
+    def update_buildings_at_infrared(self, buildings: dict, simulation_area: dict):
+        self.delete_all_buildings()
+
         print("updating buildings for project")
-        # TODO print(f"updating buildings for project {get_project_name(project_uuid)}")
+        # TODO : do we need to have the buildings in EPSG:4326 at all?
+        # TODO : can minx, miny be part of task description?
+        buildings_gdf = geopandas.GeoDataFrame.from_features(buildings["features"], crs="EPSG:4326")
+        simulation_area_gdf = geopandas.GeoDataFrame.from_features(simulation_area["features"], crs="EPSG:4326")
 
-        for new_building in buildings["features"]:
-            create_new_building(self.snapshot_uuid, self.user_token, new_building)
+        buildings_gdf = buildings_gdf.to_crs("EPSG:25832")
+        minx, miny, _, _ = simulation_area_gdf.to_crs("EPSG:25832").total_bounds
+        buildings_gdf["geometry"] = buildings_gdf.translate(-minx, -miny)
 
+        for new_building in json.loads(buildings_gdf.to_json())["features"]:
+            print(new_building)
+            create_new_building(self.snapshot_uuid,new_building)
+
+    # deletes all buildings for project on endpoint
+    def delete_all_buildings(self):
+        building_uuids = get_all_building_uuids_for_project(self.project_uuid, self.snapshot_uuid)
+
+        if not building_uuids:
+            print(f"no buildings to delete for project {self.project_uuid}")
+            return
+
+        delete_buildings(
+            self.snapshot_uuid,
+            building_uuids
+        )
 
     # TODO 1 method for each of the sims. awaiting suitable input then.
     # TODO calc_settings of type calc_settings
@@ -169,7 +187,7 @@ class InfraredProject:
 
 
 def create_new_project_at_infrared(
-        infrared_user: InfraredUser,
+        # infrared_user: InfraredUser,
         name: str,
         bbox_utm: Polygon,  # bbox ist scheissegal, invent one.
         resolution=10

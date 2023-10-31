@@ -1,35 +1,3 @@
-from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import execute_query
-import infrared_wrapper_api.infrared_wrapper.infrared.queries as queries
-from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject
-from infrared_wrapper_api.infrared_wrapper.infrared.infrared_user import InfraredUser
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -51,72 +19,9 @@ def delete_existing_project_with_same_name(infrared_user: InfraredUser, name):
             print(f"success deleting {successfully_del}")
 
 
-# deletes all buildings for project on endpoint
-def delete_all_buildings(project: InfraredProject):
-    # get all geometries in snapshot
-    snapshot_geometries = execute_query(
-        queries.get_geometry_objects_in_snapshot_query(
-            project.snapshot_uuid
-        ),
-        project.infrared_user,
-    )
-
-    building_ids_path = [
-        "data",
-        "getSnapshotGeometryObjects",
-        "infraredSchema",
-        "clients",
-        project.infrared_user.uuid,
-        "projects",
-        project.project_uuid,
-        "snapshots",
-        project.snapshot_uuid,
-        "buildings",
-    ]
-    try:
-        buildings_uuids = get_all_buildings_at_endpoint().keys()
-    except KeyError:
-        print("no buildings in snapshot")
-        return
 
 
-    # TODO USE DELETE_BUILDING FUNCTION HERE FROM CONNECTOR
-    # delete all buildings
-    for building_uuid in buildings_uuids:
-        execute_query(  # todo async
-            queries.delete_building(
-                project.snapshot_uuid,
-                building_uuid
-            ),
-            project.infrared_user,
-        )  # todo async
 
-
-def get_all_buildings_at_endpoint():
-    snapshot_geometries = execute_query(
-        wind.queries.get_geometry_objects_in_snapshot_query(self.snapshot_uuid),
-        self.user,
-    )
-
-    building_path = [
-        "data",
-        "getSnapshotGeometryObjects",
-        "infraredSchema",
-        "clients",
-        self.user.uuid,
-        "projects",
-        self.project_uuid,
-        "snapshots",
-        self.snapshot_uuid,
-        "buildings",
-    ]
-    try:
-        buildings = get_value(snapshot_geometries, building_path)
-    except:
-        print("could not get buildings")
-        return {}
-
-    return buildings
 
 
 

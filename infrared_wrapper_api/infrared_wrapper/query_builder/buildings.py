@@ -57,7 +57,6 @@ def make_building_queries(buildings_geojson):
                             polygon[0],
                         )
                         print(feature)
-                        exit()
                         return ""
                     # create a string containing a list of coordinates lists per linestring
                     #   ('PolygonWithHole', 'POLYGON((0 0, 10 0, 10 10, 0 10, 0 0),(1 1, 1 2, 2 2, 2 1, 1 1))'),
