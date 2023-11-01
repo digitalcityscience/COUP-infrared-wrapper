@@ -5,8 +5,8 @@ from shapely.geometry import Polygon
 import geopandas
 
 import infrared_wrapper_api.infrared_wrapper.infrared.queries as queries
-from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import create_new_building, \
-    get_root_snapshot_id, get_all_building_uuids_for_project, delete_buildings, create_new_buildings
+from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_root_snapshot_id, \
+    get_all_building_uuids_for_project, delete_buildings, create_new_buildings
 from infrared_wrapper_api.infrared_wrapper.infrared.models import InfraredProjectModel
 from infrared_wrapper_api.config import InfraredCalculation
 from infrared_wrapper_api.models.calculation_input import WindSimulationInput
@@ -39,15 +39,17 @@ class InfraredProject:
         # TODO : do we need to have the buildings in EPSG:4326 at all?
         # TODO : can minx, miny be part of task description?
         buildings_gdf = geopandas.GeoDataFrame.from_features(buildings["features"], crs="EPSG:4326")
+        buildings_gdf = buildings_gdf.to_crs("EPSG:25832")
         simulation_area_gdf = geopandas.GeoDataFrame.from_features(simulation_area["features"], crs="EPSG:4326")
 
-        buildings_gdf = buildings_gdf.to_crs("EPSG:25832")
+        # translate to local coord. system at 0,0
         minx, miny, _, _ = simulation_area_gdf.to_crs("EPSG:25832").total_bounds
         buildings_gdf["geometry"] = buildings_gdf.translate(-minx, -miny)
 
-        for new_building in json.loads(buildings_gdf.to_json())["features"]:
-            print(new_building)
-            create_new_building(self.snapshot_uuid,new_building)
+        create_new_buildings(
+            snapshot_uuid=self.snapshot_uuid,
+            new_buildings=json.loads(buildings_gdf.to_json())["features"]
+        )
 
     # deletes all buildings for project on endpoint
     def delete_all_buildings(self):
@@ -64,25 +66,17 @@ class InfraredProject:
 
     # TODO 1 method for each of the sims. awaiting suitable input then.
     # TODO calc_settings of type calc_settings
-    def trigger_wind_simulation_at_endpoint(self, wind_speed: int, wind_direction: int) ->str:
+    def trigger_wind_simulation_at_endpoint(self, wind_speed: int, wind_direction: int) -> str:
         """
         returns UUID to obtain calculation result from @Infrared, when simulation done.
         """
-        query = queries.run_cfd_service_query(
+        query = queries.run_wind_simulation_query(
             wind_direction,
             wind_speed,
             self.snapshot_uuid,
         )
 
         # make query to trigger result calculation on endpoint
-        try:
-            # TODO LOG REQUEST SOMEHOW
-            res = execute_query(query, self.user_token)
-            return get_value(res, ["data", "runServiceWindComfort", "uuid"])
-        except Exception as exception:
-            print("calculation for wind FAILS!")
-            print(f"with input{str(calc_settings)}")
-            print(f"Exception: {exception}")
 
     def trigger_sun_simulation_at_endpoint(self):
         # TODO calc_settings of type calc_settings

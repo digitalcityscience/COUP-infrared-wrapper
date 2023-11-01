@@ -2,10 +2,13 @@ import os
 import requests
 import time
 from typing import List
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from infrared_wrapper_api.infrared_wrapper.infrared import queries
+from infrared_wrapper_api.infrared_wrapper.infrared.queries import run_wind_simulation_query, get_analysis_output_query
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import get_value
 from infrared_wrapper_api.config import settings
+
 
 # make query to infrared api
 
@@ -21,7 +24,6 @@ class InfraredConnector:
         self.user_uuid = ""
         self.token = ""
         self.infrared_user_login()
-
 
     def infrared_user_login(self) -> tuple[str]:
         user_creds = {
@@ -41,8 +43,6 @@ class InfraredConnector:
 
         self.user_uuid = request.cookies.get("InFraReDClientUuid")
         self.token = "InFraReD=" + request.cookies.get("InFraReD")
-
-
 
     def execute_query(self, query: str):
         """
@@ -69,6 +69,7 @@ class InfraredConnector:
 
 
 connector = InfraredConnector()
+
 
 # for now every calcuation request creates a new infrared project, as calculation bbox is set on project level
 def create_new_project(self):
@@ -116,36 +117,23 @@ def create_new_project(self):
         create_new_project()
 
 
-
 def delete_project(project_uuid: str):
     connector.execute_query(queries.delete_project_query(user_uuid, project_uuid))
-
-
-def create_new_building(snapshot_uuid, new_building):
-    query = queries.create_building_query(new_building, snapshot_uuid)
-    new_bld_response = connector.execute_query(query)
-    uuid = get_value(new_bld_response, ["data", "createNewBuilding", "uuid"])
-
-    if not uuid:
-        print(
-            f"could not create building! {new_bld_response}",
-        )
-        print(f"Query {query}")
-        # TODO retry until it works
-        # create_new_building(new_building)
 
 
 def create_new_buildings(snapshot_uuid, new_buildings):
     query = queries.create_buildings(snapshot_uuid, new_buildings)
     new_bld_response = connector.execute_query(query)
-    uuid = get_value(new_bld_response, ["data", "createNewBuilding", "uuid"])
 
-    if not uuid:
+    all_success = all(entry.get("success", False) for entry in new_bld_response["data"].values())
+    # uuids = [entry.get("uuid") for entry in new_bld_response["data"].values()]
+
+    if not all_success:
         print(
-            f"could not create building! {new_bld_response}",
+            f"could not create buildings! {new_bld_response}",
         )
         print(f"Query {query}")
-        # TODO retry until it works
+        # TODO failed buildindings until it works?
         # create_new_building(new_building)
 
 
@@ -175,7 +163,6 @@ def get_all_building_uuids_for_project(project_uuid: str, snapshot_uuid: str) ->
     return buildings.keys()
 
 
-
 def delete_buildings(snapshot_uuid: str, building_uuids: List[str]):
     response = connector.execute_query(
         queries.delete_buildings(snapshot_uuid, building_uuids)
@@ -186,7 +173,6 @@ def delete_buildings(snapshot_uuid: str, building_uuids: List[str]):
     if not all_success:
         print(f"COULD NOT DELETE ALL BUILINGS {response.json()}")
         # TODO delete project then?
-
 
 
 def get_all_projects_for_user():
@@ -216,8 +202,6 @@ def get_root_snapshot_id(project_uuid):
     # the root snapshot of the infrared project will be used to create buildings and perform analysis
 
 
-
-
 def activate_sunlight_analysis_capability(user_uuid, user_token, project_uuid: str):
     query = queries.activate_sun_service_query(
         user_uuid, project_uuid
@@ -225,3 +209,47 @@ def activate_sunlight_analysis_capability(user_uuid, user_token, project_uuid: s
     response = connector.execute_query(query, user_token)
     print("activate sunlight hours calc service", response)
 
+
+def run_wind_wind_simulation(snapshot_uuid, wind_direction, wind_speed) -> str:
+    query = run_wind_simulation_query(
+        snapshot_uuid=snapshot_uuid,
+        wind_direction=wind_direction,
+        wind_speed=wind_speed
+    )
+
+    try:
+        # TODO LOG REQUEST SOMEHOW
+        response = connector.execute_query(query)
+        return get_value(response, ["data", "runServiceWindComfort", "uuid"])
+    except Exception as exception:
+        print(f"calculation for wind FAILS! for snapshot {snapshot_uuid} with exception {exception}")
+
+
+@retry(
+    stop=stop_after_attempt(10),  # Maximum number of attempts
+    wait=wait_exponential(multiplier=1, max=20),  # Exponential backoff with a maximum wait time of 10 seconds
+    retry=retry_if_exception_type(KeyError)  # Retry only on APIError exceptions
+)
+def get_analysis_output(project_uuid: str, snapshot_uuid: str, result_uuid: str) -> str:
+    query = get_analysis_output_query(
+        snapshot_uuid=snapshot_uuid,
+        result_uuid=result_uuid
+    )
+    response = connector.execute_query(query)
+
+    return get_value(
+        response,
+        [
+            "data",
+            "getAnalysisOutput",
+            "infraredSchema",
+            "clients",
+            connector.user_uuid,
+            "projects",
+            project_uuid,
+            "snapshots",
+            snapshot_uuid,
+            "analysisOutputs",
+            result_uuid
+        ]
+    )

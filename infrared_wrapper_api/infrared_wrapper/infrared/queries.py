@@ -35,38 +35,6 @@ def create_project_query(user_uuid, name, sw_lat, sw_long, bbox_size, resolution
     })
 
 
-# returns a query string to create new building in snapshot
-def create_building_query(building, snapshot_uuid):
-    """
-    call json.dumps twice to create double escape characters \\
-    remove opening "{" and closing "}" of second json.dumps by [1:-1]
-    to generate a string like "{\\"type\\": \\"Polygon\\", \\"coordinates\\":[[[360.681519,101.463867],...]]]}"
-    """
-    building_geom = json.dumps(json.dumps(mapping(Polygon(building["geometry"]["coordinates"][0]))))[1:-1]
-
-    template = Template("""mutation
-    {
-        createNewBuilding(
-        use: "$building_use"
-        height: $building_height
-        category: "site"
-        geometry: "$building_geom"
-        snapshotUuid: "$snapshot_uuid"
-    ) {
-        success
-    uuid
-    }
-    }
-    """)
-
-    return template.safe_substitute({
-        "building_use": building["properties"]["use"],
-        "building_height": building["properties"]["height"],
-        "building_geom": building_geom,
-        "snapshot_uuid": snapshot_uuid
-    })
-
-
 def create_buildings(snapshot_uuid, buildings: List[dict]):
     def get_building_geom(bld):
         """
@@ -81,7 +49,7 @@ def create_buildings(snapshot_uuid, buildings: List[dict]):
             use: "$building_use"
             height: $building_height
             category: "site"
-            geometry: $building_geom
+            geometry: "$building_geom"
             snapshotUuid: "$snapshot_uuid"
             ){
                 success
@@ -166,7 +134,7 @@ def activate_sun_service_query(user_uuid, project_uuid):
     })
 
 
-def run_cfd_service_query(wind_direction, wind_speed, snapshot_uuid):
+def run_wind_simulation_query(snapshot_uuid, wind_direction, wind_speed):
     template = Template("""
         mutation {
           runServiceWindComfort (
@@ -224,7 +192,7 @@ def run_sunlight_hours_service_query(snapshot_uuid):
     })
 
 
-def get_analysis_output_query(uuid, snapshot_uuid):
+def get_analysis_output_query(snapshot_uuid, result_uuid):
     template = Template("""
         query {
           getAnalysisOutput (
@@ -238,7 +206,7 @@ def get_analysis_output_query(uuid, snapshot_uuid):
         """)
 
     return template.safe_substitute({
-        "uuid": uuid,
+        "uuid": result_uuid,
         "snapshot_uuid": snapshot_uuid,
     })
 
@@ -278,6 +246,9 @@ def delete_project_query(user_uuid, project_uuid):
 
 
 def get_snapshot_query(project_uuid):
+    """
+    getSnapshotsByProjectUuid  ||| execution time: 0.42264413833618164
+    """
     getSnapshotsQuery = Template("""
                 query {
                   getSnapshotsByProjectUuid (
@@ -293,6 +264,10 @@ def get_snapshot_query(project_uuid):
 
 
 def get_geometry_objects_in_snapshot_query(snapshot_uuid):
+    """
+    Geometry objects are buildings or roads
+    getSnapshotGeometryObjects  ||| execution time: 1.007824420928955
+    """
     template = Template("""
                 query {
   getSnapshotGeometryObjects (
@@ -323,6 +298,9 @@ def delete_building(snapshot_uuid, building_uuid):
 
 
 def delete_buildings(snapshot_uuid, building_uuids: List[str]):
+    """
+    delObject0: deleteBuilding ||| execution time: 2.350510597229004
+    """
     single_building_delete_template = Template("""
                 delObject$count: deleteBuilding(
                 uuid: "$building_uuid"
@@ -343,14 +321,12 @@ def delete_buildings(snapshot_uuid, building_uuids: List[str]):
         )
         for key, building_uuid in enumerate(building_uuids)
     )
-    final_query = Template("""
+    return Template("""
         mutation {
             $all_building_queries
             }
         """
-                           ).safe_substitute({"all_building_queries": all_buildings_queries})
-
-    return final_query
+                    ).safe_substitute({"all_building_queries": all_buildings_queries})
 
 
 def delete_street(snapshot_uuid, street_uuid):
