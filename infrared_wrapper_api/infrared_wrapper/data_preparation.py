@@ -10,7 +10,7 @@ from infrared_wrapper_api.models.calculation_input import WindSimulationTask
 
 def create_simulation_tasks(task_def: dict) -> List[WindSimulationTask]:
 
-    buildings_gdf = gpd.GeoDataFrame.from_features(task_def["buildings"]["features"], crs="EPSG:4326")
+    buildings_gdf = gpd.GeoDataFrame.from_features(task_def["buildings"]["features"], crs="EPSG:25832")
 
     # subdivide the region with all buildings into simulation area sized bboxes
     matrix = create_bbox_matrix(buildings_gdf)
@@ -32,7 +32,7 @@ def create_bbox_matrix(buildings: gpd.GeoDataFrame) -> List[gpd.GeoDataFrame]:
     """
     creates a matrix of overlapping bboxes covering the project area polygon
     """
-    total_area = buildings.to_crs("EPSG:25832").unary_union.convex_hull  # total area in metric coords
+    total_area = buildings.unary_union.convex_hull
     min_x, min_y, max_x, max_y = total_area.bounds
     size = settings.infrared_calculation.true_simulation_area_size
     buffer = settings.infrared_calculation.simulation_area_buffer
@@ -55,19 +55,6 @@ def create_bbox_matrix(buildings: gpd.GeoDataFrame) -> List[gpd.GeoDataFrame]:
             _bbox_without_buffer = box(box_min_x + buffer, box_min_y + buffer, box_max_x-buffer, box_max_y-buffer)
             if total_area.intersection(_bbox_without_buffer):
                 # only add bbox to matrix, if actually intersecting with the project area polygon
-                bbox_matrix.append(gpd.GeoDataFrame(geometry=[bbox], crs="EPSG:25832").to_crs("EPSG:4326"))
+                bbox_matrix.append(gpd.GeoDataFrame(geometry=[bbox], crs="EPSG:25832"))
 
     return bbox_matrix
-
-
-
-
-if __name__ == "__main__":
-    import os
-    print(os.getcwd())
-
-    buildings = gpd.read_file("/home/andre/COUP/code/CUT-prototype-wind-api-v2/infrared_wrapper_api/models/jsons/__all__buildings.json")
-
-
-
-    create_bbox_matrix(buildings)

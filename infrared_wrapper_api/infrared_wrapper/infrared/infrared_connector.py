@@ -121,8 +121,8 @@ def delete_project(project_uuid: str):
     connector.execute_query(queries.delete_project_query(user_uuid, project_uuid))
 
 
-def create_new_buildings(snapshot_uuid, new_buildings):
-    query = queries.create_buildings(snapshot_uuid, new_buildings)
+def create_new_buildings(snapshot_uuid: str, new_buildings: dict):
+    query = queries.create_buildings(snapshot_uuid, new_buildings["features"])
     new_bld_response = connector.execute_query(query)
 
     all_success = all(entry.get("success", False) for entry in new_bld_response["data"].values())
@@ -230,7 +230,7 @@ def run_wind_wind_simulation(snapshot_uuid, wind_direction, wind_speed) -> str:
     wait=wait_exponential(multiplier=1, max=20),  # Exponential backoff with a maximum wait time of 10 seconds
     retry=retry_if_exception_type(KeyError)  # Retry only on APIError exceptions
 )
-def get_analysis_output(project_uuid: str, snapshot_uuid: str, result_uuid: str) -> str:
+def get_analysis_output(project_uuid: str, snapshot_uuid: str, result_uuid: str) -> dict:
     query = get_analysis_output_query(
         snapshot_uuid=snapshot_uuid,
         result_uuid=result_uuid

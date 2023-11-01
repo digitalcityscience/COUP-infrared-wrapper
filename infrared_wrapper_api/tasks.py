@@ -8,6 +8,7 @@ from fastapi.encoders import jsonable_encoder
 # todo uncomment from infrared_wrapper_api.dependencies import cache, celery_app
 from infrared_wrapper_api.infrared_wrapper.data_preparation import create_bbox_matrix, create_simulation_tasks
 from infrared_wrapper_api.infrared_wrapper.format_result import result_to_geojson
+from infrared_wrapper_api.infrared_wrapper.infrared.utils import reproject_geojson
 from infrared_wrapper_api.models.calculation_input import WindSimulationTask
 from infrared_wrapper_api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis
 from infrared_wrapper_api.infrared_wrapper.infrared.simulation import do_wind_simulation
@@ -62,11 +63,17 @@ def task_do_wind_simulation(
 
 
 @celery_app.task()
-def compute_task_wind(task_def: dict) -> dict:
+def compute_task_wind(simulation_input: dict) -> dict:
 
-    print(task_def)
+    # reproject buildings to metric system for internal use
+    simulation_input["buildings"] = reproject_geojson(
+        simulation_input["buildings"],
+        "EPSG:4326",
+        "EPSG:25832"
+    )
 
-    simulation_tasks = create_simulation_tasks(task_def)
+    # split request in several simulation tasks with a simulation area of max 500m*500m
+    simulation_tasks = create_simulation_tasks(simulation_input)
 
     # trigger calculation and collect result for project in infrared_projects
     task_group = group(

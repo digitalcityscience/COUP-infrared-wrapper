@@ -31,24 +31,21 @@ class InfraredProject:
     # TODO wie machen wir das am besten mit wind vs sun simulation. 
     #  Sollte sichergestellt sein, das buildigns up to date sind + aber nicht doppelt updaten.
     # ich glaub es ist am besten das direkt in simulate.py zu machen. Dort erst update buildings aufrufen und dann die calc triggern
-
     def update_buildings_at_infrared(self, buildings: dict, simulation_area: dict):
         self.delete_all_buildings()
 
         print("updating buildings for project")
-        # TODO : do we need to have the buildings in EPSG:4326 at all?
         # TODO : can minx, miny be part of task description?
-        buildings_gdf = geopandas.GeoDataFrame.from_features(buildings["features"], crs="EPSG:4326")
-        buildings_gdf = buildings_gdf.to_crs("EPSG:25832")
-        simulation_area_gdf = geopandas.GeoDataFrame.from_features(simulation_area["features"], crs="EPSG:4326")
+        buildings_gdf = geopandas.GeoDataFrame.from_features(buildings["features"], crs="EPSG:25832")
+        simulation_area_gdf = geopandas.GeoDataFrame.from_features(simulation_area["features"], crs="EPSG:25832")
 
         # translate to local coord. system at 0,0
-        minx, miny, _, _ = simulation_area_gdf.to_crs("EPSG:25832").total_bounds
+        minx, miny, _, _ = simulation_area_gdf.total_bounds
         buildings_gdf["geometry"] = buildings_gdf.translate(-minx, -miny)
 
         create_new_buildings(
             snapshot_uuid=self.snapshot_uuid,
-            new_buildings=json.loads(buildings_gdf.to_json())["features"]
+            new_buildings=json.loads(buildings_gdf.to_json())
         )
 
     # deletes all buildings for project on endpoint
@@ -64,19 +61,6 @@ class InfraredProject:
             building_uuids
         )
 
-    # TODO 1 method for each of the sims. awaiting suitable input then.
-    # TODO calc_settings of type calc_settings
-    def trigger_wind_simulation_at_endpoint(self, wind_speed: int, wind_direction: int) -> str:
-        """
-        returns UUID to obtain calculation result from @Infrared, when simulation done.
-        """
-        query = queries.run_wind_simulation_query(
-            wind_direction,
-            wind_speed,
-            self.snapshot_uuid,
-        )
-
-        # make query to trigger result calculation on endpoint
 
     def trigger_sun_simulation_at_endpoint(self):
         # TODO calc_settings of type calc_settings
@@ -160,25 +144,6 @@ class InfraredProject:
         )
 
         return geo_tif_path
-
-    # private
-    def remove_buffer_from_result_then_clip_to_roi(self, input_geojson):
-
-        # TODO remove buffer with numpy??
-
-        # create a gdf of the unbuffered bbox. To clip to this.
-        bbox_gdf = geopandas.GeoDataFrame(
-            [self.bbox_wgs], columns=["geometry"], crs="EPSG:4326"
-        )
-        # remove bbox buffer
-        clipped_gdf = geopandas.clip(make_gdf_from_geojson(input_geojson), bbox_gdf)
-        # clip to ROI
-        clipped_gdf = geopandas.clip(
-            clipped_gdf, self.gdf_result_roi.to_crs("EPSG:4326")
-        )
-
-        return json.loads(clipped_gdf.to_json())
-
 
 def create_new_project_at_infrared(
         # infrared_user: InfraredUser,
