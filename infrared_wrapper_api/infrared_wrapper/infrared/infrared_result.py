@@ -93,9 +93,8 @@ class InfraredResult:
 
 def georeference_infrared_result(
         raw_result: dict,
-        total_bounds_simulation_area: Tuple[float, ...],
-        target_crs="EPSG:4326"
-) -> dict:
+        total_bounds_simulation_area: Tuple[float, ...]
+    ) -> dict:
     result = InfraredResult.from_raw_result(raw_result)
 
     result_geojson = result.result_to_geojson()
@@ -113,7 +112,7 @@ def georeference_infrared_result(
     result_gdf = result_gdf.dissolve(by="value").reset_index()
 
     # reproject and return geojson dict
-    return json.loads(result_gdf.to_crs(target_crs).to_json())
+    return json.loads(result_gdf.to_crs("EPSG:4326").to_json())
 
 
 def crop_buffer(gdf_with_metric_crs: gpd.GeoDataFrame):

@@ -5,7 +5,6 @@ import os
 from unittest.mock import patch
 
 from infrared_wrapper_api.infrared_wrapper.data_preparation import create_simulation_tasks, create_bbox_matrix
-from infrared_wrapper_api.infrared_wrapper.infrared.models import ResultLookUpInfo
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import reproject_geojson
 from infrared_wrapper_api.models.calculation_input import WindSimulationTask
 from infrared_wrapper_api.config import settings
@@ -91,7 +90,7 @@ def test_task_not_cached(sample_simulation_area, sample_single_task_building_dat
     with patch("infrared_wrapper_api.dependencies.cache.get", return_value=None) as mock_cache_get, \
             patch(
                 "infrared_wrapper_api.tasks.do_wind_simulation",
-                return_value=ResultLookUpInfo(project_uuid="abc", result_uuid="def")) as mock_do_wind_sim:
+                ) as mock_do_wind_sim:
         # call function
         mock_project_uuid = "abc123"
         sample_wind_sim_task = {
@@ -104,19 +103,17 @@ def test_task_not_cached(sample_simulation_area, sample_single_task_building_dat
         task_do_wind_simulation(mock_project_uuid, sample_wind_sim_task)
 
         # Assert checking in cache
-        print(sample_wind_sim_task["buildings"])
         mock_cache_get.assert_called()
         task = WindSimulationTask(**sample_wind_sim_task)
         mock_cache_get.assert_called_once_with(key=task.celery_key)
         # Assert wind simulation is called, as result of task is not cached
-        mock_do_wind_sim.assert_called_once_with(mock_project_uuid, sample_wind_sim_task)
+        mock_do_wind_sim.assert_called_once_with(project_uuid=mock_project_uuid, wind_sim_task=sample_wind_sim_task)
 
 
 def test_task_is_cached(sample_simulation_area, sample_single_task_building_data):
     # Mock functions that require a redis instance to run.
     with patch("infrared_wrapper_api.dependencies.cache.get", return_value={"result": "placeholder"}) as mock_cache_get, \
-            patch(
-                "infrared_wrapper_api.infrared_wrapper.infrared.simulation.do_wind_simulation") as mock_do_wind_sim:
+            patch("infrared_wrapper_api.infrared_wrapper.infrared.simulation.do_wind_simulation") as mock_do_wind_sim:
         # call function
         mock_project_uuid = "abc123"
         sample_wind_sim_task = {

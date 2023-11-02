@@ -61,8 +61,8 @@ def create_buildings(snapshot_uuid, buildings: List[dict]):
         single_building_create_template.safe_substitute(
             {
                 "count": key,
-                "building_use": building["properties"]["use"],
-                "building_height": building["properties"]["height"],
+                "building_use": "some use",
+                "building_height": building["properties"]["building_height"],
                 "building_geom": get_building_geom(building),
                 "snapshot_uuid": snapshot_uuid
             }

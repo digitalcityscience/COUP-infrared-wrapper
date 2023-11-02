@@ -1,6 +1,3 @@
-import geopandas as gpd
-import json
-
 from celery import signals, group, chain
 from celery.utils.log import get_task_logger
 from fastapi.encoders import jsonable_encoder
@@ -9,19 +6,16 @@ from infrared_wrapper_api.dependencies import cache, celery_app
 from infrared_wrapper_api.infrared_wrapper.data_preparation import create_simulation_tasks
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import reproject_geojson
 from infrared_wrapper_api.models.calculation_input import WindSimulationTask
-from infrared_wrapper_api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis
+from infrared_wrapper_api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis, \
+    get_all_infrared_project_uuids
 from infrared_wrapper_api.infrared_wrapper.infrared.simulation import do_wind_simulation
-
 
 logger = get_task_logger(__name__)
 
 
 # trigger calculation for a infrared project
 @celery_app.task()
-def task_do_wind_simulation(
-        project_uuid: str,
-        wind_sim_task: dict) -> dict:
-
+def task_do_wind_simulation(project_uuid: str, wind_sim_task: dict) -> dict:
     task = WindSimulationTask(**wind_sim_task)
 
     if result := cache.get(key=task.celery_key):
@@ -31,17 +25,28 @@ def task_do_wind_simulation(
         return result
 
     logger.info(
-        f"Result with key: {task.celery_key} not found in cache. Starting calculation ..."
+        f"Starting calculation ...  Result with key: {task.celery_key} not found in cache."
     )
 
     return do_wind_simulation(
-        project_uuid,
-        wind_sim_task
-    ).to_dict()
+        project_uuid=project_uuid,
+        wind_sim_task=wind_sim_task
+    )
 
 
 @celery_app.task()
-def compute_task_wind(simulation_input: dict)-> dict:
+def task_cache_result(geojson_result: dict, celery_key: str):
+    # cache result if sucessful
+    if geojson_result.get("features", []) == 0:
+        logger.error("GOT EMPTY RESULT")
+        return
+
+    cache.put(key=celery_key, value=geojson_result)
+    logger.info(f"Saved result with key {celery_key} to cache.")
+
+
+@celery_app.task()
+def compute_task_wind(simulation_input: dict) -> dict:
 
     # reproject buildings to metric system for internal use
     simulation_input["buildings"] = reproject_geojson(
@@ -52,6 +57,8 @@ def compute_task_wind(simulation_input: dict)-> dict:
 
     # split request in several simulation tasks with a simulation area of max 500m*500m
     simulation_tasks = create_simulation_tasks(simulation_input)
+    logger.info(f"This simulation is split into {len(simulation_tasks)} subtasks")
+    all_infrared_project_uuids = get_all_infrared_project_uuids()
 
     # trigger calculation and collect result for project in infrared_projects
     task_group = group(
@@ -59,13 +66,10 @@ def compute_task_wind(simulation_input: dict)-> dict:
             # create task chain for each bbox. tasks in chain will be executed sequentially
             chain(
                 task_do_wind_simulation.s(
-                    project_uuid=find_idle_infrared_project(),
+                    project_uuid=find_idle_infrared_project(all_infrared_project_uuids),
                     wind_sim_task=jsonable_encoder(simulation_task)
-                ),  # returns result_uuid and project uuid!
-                # TODO also put project_uuid in result collect_result
-                # collect_infrared_result.s(infrared_user),  # will have return val of previous func as first arg
-                # TODO bbox to be put into result for georef later.
-                # result_to_geojson(simulation_task.simulation_area)
+                ),  # returns geojson result
+                task_cache_result.s(simulation_task.celery_key)  # has return val of previous func as 1st arg
             )
             for simulation_task in simulation_tasks
         ]
@@ -88,27 +92,20 @@ def compute_task_sun(task_def: dict) -> dict:
 @signals.task_postrun.connect
 def task_postrun_handler(task_id, task, *args, **kwargs):
     state = kwargs.get("state")
-    args = kwargs.get("args")
     kwargs = kwargs.get("kwargs")
-    result = kwargs.get("retval")
 
-    print(f"task_id: {task_id}")
-    print(f"task: {task}")
-    print(f"args: {args}")
-    print(f"kwargs: {kwargs}")
-    print(f"uuuuuuuuid: {kwargs['project_uuid']}")
-    print(f"wind_sim_task: {kwargs['wind_sim_task']}")
+    # if state failure always set project_uuid busy:false
 
-    if "task_do_wind_simulation" in kwargs["task"]:
-        # set project to be not busy again.
-        update_infrared_project_status_in_redis(project_uuid=kwargs['project_uuid'], is_busy=False)
-        logger.info(f"Set project to 'is_busy=False' for project: {kwargs['project_uuid']}")
-
+    if "task_do_wind_simulation" in str(task):
         if state == "SUCCESS":
-            # cache result if sucessful
-            key = WindSimulationTask(**kwargs['wind_sim_task']).celery_key
-            cache.put(key=key, value=result)
-            logger.info(f"Saved result with key {key} to cache.")
+            logger.info(f"simulation successfully run!")
+        else:
+            logger.error(f"Simulation of task {kwargs} failed with state {state}")
+
+        project_uuid = kwargs.get("project_uuid")
+        # set project to be not busy again.
+        update_infrared_project_status_in_redis(project_uuid=project_uuid, is_busy=False)
+        logger.info(f"Set project to 'is_busy=False' for project: {project_uuid}")
 
 
 if __name__ == "__main__":
@@ -160,6 +157,6 @@ if __name__ == "__main__":
         "wind_direction": 45
     }
 
-    compute_task_wind(task_definition, infrared_user)
+    compute_task_wind(task_definition)
 
 

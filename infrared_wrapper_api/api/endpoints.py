@@ -21,7 +21,7 @@ router = APIRouter(tags=["tasks"])
 async def process_task_wind(
     calculation_input: WindSimulationInput,
 ):
-    calculation_task = WindSimulationTask(**calculation_input.dict())
+    calculation_task = WindSimulationInput(**calculation_input.dict())
 
     result = tasks.compute_task_wind.delay(jsonable_encoder(calculation_task))
     return {"taskId": result.id}\

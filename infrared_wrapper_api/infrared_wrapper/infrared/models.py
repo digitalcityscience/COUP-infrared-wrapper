@@ -16,9 +16,3 @@ class InfraredProjectModel:
 class ProjectStatus:
     is_busy: bool
 
-
-@dataclass_json
-@dataclass
-class ResultLookUpInfo:
-    project_uuid: str
-    result_uuid: str

@@ -4,13 +4,9 @@ import json
 from shapely.geometry import Polygon
 import geopandas
 
-import infrared_wrapper_api.infrared_wrapper.infrared.queries as queries
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_root_snapshot_id, \
     get_all_building_uuids_for_project, delete_buildings, create_new_buildings
 from infrared_wrapper_api.infrared_wrapper.infrared.models import InfraredProjectModel
-from infrared_wrapper_api.config import InfraredCalculation
-from infrared_wrapper_api.models.calculation_input import WindSimulationInput
-from infrared_wrapper_api.infrared_wrapper.infrared.utils import get_value
 
 config = None
 
@@ -45,7 +41,7 @@ class InfraredProject:
 
         create_new_buildings(
             snapshot_uuid=self.snapshot_uuid,
-            new_buildings=json.loads(buildings_gdf.to_json())
+            new_buildings=json.loads(buildings_gdf.explode(index_parts=True).to_json())  # creating multipolygons fails
         )
 
     # deletes all buildings for project on endpoint
@@ -61,89 +57,6 @@ class InfraredProject:
             building_uuids
         )
 
-
-    def trigger_sun_simulation_at_endpoint(self):
-        # TODO calc_settings of type calc_settings
-
-        # TODO activate_sunlight_analysis_capability(self.user, self.project_uuid)
-        query = queries.run_sunlight_hours_service_query(self.snapshot_uuid)
-        service_command = "runServiceSunlightHours"
-
-        # make query to trigger result calculation on endpoint
-        try:
-            # TODO cityPyo.log_calculation_request(sim_type, result_uuid)
-            res = execute_query(query, self.user_token)
-            return get_value(res, ["data", service_command, "uuid"])
-
-        except Exception as exception:
-            print("calculation for SUN FAILS !")
-            print(f"Exception: {exception}")
-
-    # waits for the result to be available. Then crops it to the area of interest.
-    # TODO potentially we crop the returned array here already to max calculation area --> bbox - 100m per side?
-    def get_result(self, result_uuid) -> dict:
-        tries = 0
-        max_tries = 100
-        response = execute_query(
-            queries.get_analysis_output_query(result_uuid, self.snapshot_uuid),
-            self.user_token,
-        )
-
-        # wait for result to arrive
-        # TODO must be better way for this, like with yield?
-        while (
-                not get_value(response, ["data", "getAnalysisOutput", "infraredSchema"])
-        ) and tries <= max_tries:
-            tries += 1
-            response = execute_query(
-                queries.get_analysis_output_query(result_uuid, self.snapshot_uuid),
-                self.user_token
-            )
-            time.sleep(2)  # give the API some time to calc something
-
-        if not tries > max_tries:
-            result = get_value(
-                response,
-                [
-                    "data",
-                    "getAnalysisOutput",
-                    "infraredSchema",
-                    "clients",
-                    self.user.uuid,
-                    "projects",
-                    self.project_uuid,
-                    "snapshots",
-                    self.snapshot_uuid,
-                    "analysisOutputs",
-                    result_uuid,
-                ],
-            )
-            return self.get_result_as_geojson(result)
-        else:
-            raise Exception("Could not get analysis_output from AIT", result_uuid)
-
-    """ 
-    **** Result conversion and cropping ****
-    """
-
-    # private
-    # TODO get this out of here!
-    def get_result_as_geojson(self, raw_result):
-        tmp_geotif_raw_result = self.convert_result_to_geotif(
-            raw_result, self.buffered_bbox_utm
-        )
-        geojson_raw_result = convert_tif_to_geojson(tmp_geotif_raw_result)
-
-        return self.remove_buffer_from_result_then_clip_to_roi(geojson_raw_result)
-
-    # private
-    def convert_result_to_geotif(self, result, bbox):
-        # save result as geotif so it can be easily cropped to roi
-        geo_tif_path = export_result_to_geotif(
-            result["analysisOutputData"], bbox, self.name
-        )
-
-        return geo_tif_path
 
 def create_new_project_at_infrared(
         # infrared_user: InfraredUser,

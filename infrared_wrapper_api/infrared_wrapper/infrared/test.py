@@ -147,7 +147,7 @@ def test_handling_result(sample_simulation_result):
         assert abs(val1 - val2) == settings.infrared_calculation.simulation_area_buffer
 
 
-def test_geoferencing_result(sample_simulation_result, sample_simulation_area):
+def test_getting_final_georeferenced_result(sample_simulation_result, sample_simulation_area):
     sim_area_gdf = gpd.GeoDataFrame.from_features(sample_simulation_area["features"], "EPSG:4326")
 
     result = georeference_infrared_result(sample_simulation_result, sim_area_gdf.to_crs("EPSG:25832").total_bounds)
