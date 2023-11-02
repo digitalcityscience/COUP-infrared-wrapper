@@ -22,15 +22,7 @@ async def process_task_wind(
     calculation_input: WindSimulationInput,
 ):
     calculation_task = WindSimulationTask(**calculation_input.dict())
-    if result := cache.get(key=calculation_task.celery_key):
-        logger.info(
-            f"Result fetched from cache with key: {calculation_task.celery_key}"
-        )
-        return result
 
-    logger.info(
-        f"Result with key: {calculation_task.celery_key} not found in cache. Starting calculation ..."
-    )
     result = tasks.compute_task_wind.delay(jsonable_encoder(calculation_task))
     return {"taskId": result.id}\
 

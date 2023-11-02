@@ -1,45 +1,26 @@
-import json
-import logging
-import os
-
-from fastapi.encoders import jsonable_encoder
-
+from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import run_wind_wind_simulation
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject
-# from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject
-from infrared_wrapper_api.infrared_wrapper.infrared.infrared_user import InfraredUser
-from infrared_wrapper_api.dependencies import cache, celery_app
-from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_all_project_for_user, get_root_snapshot_id
-from infrared_wrapper_api.infrared_wrapper.infrared.models import ProjectStatus, InfraredProjectModel
-from infrared_wrapper_api.models.calculation_input import WindSimulationInput
+from infrared_wrapper_api.infrared_wrapper.infrared.models import ResultLookUpInfo
 
 
 def do_wind_simulation(
-    infrared_user: dict,   # could be dataclass type
     project_uuid: str,
-    buildings: dict,
-    wind_speed: int,
-    wind_direction: int
-) -> str:
-    print("buildings")
-    print(type(buildings))
-    print(buildings)
+    wind_sim_task: dict
+) -> ResultLookUpInfo:
+    infrared_project = InfraredProject(project_uuid)
+    infrared_project.update_buildings_at_infrared(
+        wind_sim_task["buildings"],
+        wind_sim_task["simulation_area"]
+    )
 
-    infrared_project = InfraredProject(infrared_user, project_uuid)
+    result_uuid = run_wind_wind_simulation(
+        snapshot_uuid=infrared_project.snapshot_uuid,
+        wind_direction=wind_sim_task["wind_direction"],
+        wind_speed=wind_sim_task["wind_speed"]
+    )
 
-    # TODO maybe it is best do it busy-marking, building updating and simulating on the proejct? move "private functions" out of class, but same file?"
-    # TODO mark project as busy in cache.
-    infrared_project.update_buildings_at_endpoint(buildings)
-    result_uuid = infrared_project.trigger_wind_simulation_at_endpoint(wind_speed, wind_direction)
-
-    return result_uuid
-
-
-
-
-
-if __name__ == "__main__":
-    infrared_user = InfraredUser()
-
-    project_uuid, snapshot_uuid = find_idle_infrared_project()
-
+    return ResultLookUpInfo(
+        project_uuid= project_uuid,
+        result_uuid= result_uuid
+    )
 
