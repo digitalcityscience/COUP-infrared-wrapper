@@ -35,14 +35,16 @@ def task_do_wind_simulation(project_uuid: str, wind_sim_task: dict) -> dict:
 
 
 @celery_app.task()
-def task_cache_result(geojson_result: dict, celery_key: str):
+def task_cache_and_return_result(geojson_result: dict, celery_key: str) -> dict:
     # cache result if sucessful
     if geojson_result.get("features", []) == 0:
         logger.error("GOT EMPTY RESULT")
-        return
+        return {}
 
     cache.put(key=celery_key, value=geojson_result)
     logger.info(f"Saved result with key {celery_key} to cache.")
+
+    return geojson_result
 
 
 @celery_app.task()
@@ -69,7 +71,7 @@ def compute_task_wind(simulation_input: dict) -> dict:
                     project_uuid=find_idle_infrared_project(all_infrared_project_uuids),
                     wind_sim_task=jsonable_encoder(simulation_task)
                 ),  # returns geojson result
-                task_cache_result.s(simulation_task.celery_key)  # has return val of previous func as 1st arg
+                task_cache_and_return_result.s(simulation_task.celery_key)  # has return val of previous func as 1st arg
             )
             for simulation_task in simulation_tasks
         ]
