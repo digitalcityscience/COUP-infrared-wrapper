@@ -24,7 +24,7 @@ async def process_task_wind(
     calculation_task = WindSimulationInput(**calculation_input.dict())
 
     result = tasks.compute_task_wind.delay(jsonable_encoder(calculation_task))
-    return {"taskId": result.id}\
+    return {"taskId": result.get()}\
 
 
 
@@ -65,7 +65,11 @@ async def get_task(task_id: str):
 
 @router.get("/grouptasks/{group_task_id}")
 def get_grouptask(group_task_id: str):
+    # TODO handle invalid ids
+
     group_result = GroupResult.restore(group_task_id, app=celery_app)
+
+
 
     # Fields available
     # https://docs.celeryproject.org/en/stable/reference/celery.result.html#celery.result.ResultSet
