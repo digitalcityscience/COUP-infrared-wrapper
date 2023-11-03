@@ -3,12 +3,18 @@ import json
 import logging
 from enum import Enum
 from typing import List
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_all_projects_for_user
 from infrared_wrapper_api.infrared_wrapper.infrared.models import ProjectStatus
 from infrared_wrapper_api.dependencies import cache
 
 logger = logging.getLogger(__name__)
+
+
+class NoIdleProjectException(Exception):
+    "Raised when no idle project found"
+    pass
 
 
 def hash_dict(dict_) -> str:
@@ -25,7 +31,7 @@ def load_json_file(path: str) -> dict:
         return json.loads(f.read())
 
 
-def update_infrared_project_status_in_redis(project_uuid: str, is_busy:bool):
+def update_infrared_project_status_in_redis(project_uuid: str, is_busy: bool):
     """
     marks whether a infrared project can be used or is busy with some other simulation
     """
@@ -39,13 +45,12 @@ def get_all_infrared_project_uuids() -> List[str]:
         raise ValueError("No projects exist at infrared endpoint")
 
 
+@retry(
+    stop=stop_after_attempt(5),  # Maximum number of attempts
+    wait=wait_exponential(multiplier=1, max=30),  # Exponential backoff with a maximum wait time of 20 seconds
+    retry=retry_if_exception_type(NoIdleProjectException)  # Retry only on APIError exceptions
+)
 def find_idle_infrared_project(all_project_keys) -> str:
-
-    """
-    TODO wait for project to become available if none.
-    TODO should probably be a function  in the user file!
-    TODO or better to be in utils??
-    """
     for project_key in all_project_keys:
         project_status: ProjectStatus = cache.get(key=project_key)
         print(project_status)
@@ -54,9 +59,7 @@ def find_idle_infrared_project(all_project_keys) -> str:
             print(f" using infrared project {project_key}")
             return project_key
 
-    # TODO wait until is is idle. with luis retry method?
-    raise NotImplementedError("implement waiting for idle projects")
-
+    raise NoIdleProjectException("All infrared projects seem to be in use!")
 
 
 if __name__ == "__main__":
