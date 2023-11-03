@@ -10,12 +10,9 @@ from infrared_wrapper_api.infrared_wrapper.infrared.utils import get_value
 from infrared_wrapper_api.config import settings
 
 
-# make query to infrared api
-
-# TODO async?
-# can async requests be executed at bulk and each requests gets repeated until successful / or finally fails after 30 tries
-# and then obtain a status whether all requests have finished and how many have finally failed
-# should be used for buildings updating and deleting
+class InfraredException(Exception):
+    "Raised when no idle project found"
+    pass
 
 
 class InfraredConnector:
@@ -61,7 +58,7 @@ class InfraredConnector:
             self.execute_query(query)
 
         if request.status_code != 200:
-            raise Exception(
+            raise InfraredException(
                 f"Query failed to run by returning code of {request.status_code}. URL: {url} , Query: {query}, Headers: {headers}"
             )
         print(f"Query: {query.split('(')[0]} ||| execution time: {time.time() - start_time}")
@@ -121,12 +118,16 @@ def delete_project(project_uuid: str):
     connector.execute_query(queries.delete_project_query(user_uuid, project_uuid))
 
 
+@retry(
+    stop=stop_after_attempt(5),  # Maximum number of attempts
+    wait=wait_exponential(multiplier=1, max=20),  # Exponential backoff with a maximum wait time of 10 seconds
+    retry=retry_if_exception_type(InfraredException)  # Retry only on APIError exceptions
+)
 def create_new_buildings(snapshot_uuid: str, new_buildings: dict):
     query = queries.create_buildings(snapshot_uuid, new_buildings["features"])
     new_bld_response = connector.execute_query(query)
 
     all_success = all(entry.get("success", False) for entry in new_bld_response["data"].values())
-    # uuids = [entry.get("uuid") for entry in new_bld_response["data"].values()]
 
     if not all_success:
         print(
