@@ -4,6 +4,7 @@ from fastapi.encoders import jsonable_encoder
 
 from infrared_wrapper_api.dependencies import cache, celery_app
 from infrared_wrapper_api.infrared_wrapper.data_preparation import create_simulation_tasks
+from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import reproject_geojson
 from infrared_wrapper_api.models.calculation_input import WindSimulationTask
 from infrared_wrapper_api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis, \
@@ -105,6 +106,11 @@ def task_postrun_handler(task_id, task, *args, **kwargs):
             logger.error(f"Simulation of task {kwargs} failed with state {state}")
 
         project_uuid = kwargs.get("project_uuid")
+
+        # delete buildings again
+        infrared_project = InfraredProject(project_uuid)
+        infrared_project.delete_all_buildings()
+
         # set project to be not busy again.
         update_infrared_project_status_in_redis(project_uuid=project_uuid, is_busy=False)
         logger.info(f"Set project to 'is_busy=False' for project: {project_uuid}")

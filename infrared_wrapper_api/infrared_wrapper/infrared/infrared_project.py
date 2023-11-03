@@ -28,7 +28,7 @@ class InfraredProject:
     #  Sollte sichergestellt sein, das buildigns up to date sind + aber nicht doppelt updaten.
     # ich glaub es ist am besten das direkt in simulate.py zu machen. Dort erst update buildings aufrufen und dann die calc triggern
     def update_buildings_at_infrared(self, buildings: dict, simulation_area: dict):
-        self.delete_all_buildings()
+        # await self.delete_all_buildings()   # loosing too much time here. Remember to delete buildings after sim!
 
         print("updating buildings for project")
         # TODO : can minx, miny be part of task description?
