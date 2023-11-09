@@ -65,11 +65,8 @@ def test_create_bbox_matrix(sample_all_building_data):
     # test bbox size
     minx, miny, maxx, maxy = test_bbox.total_bounds
 
-    assert pytest.approx(maxx - minx) == settings.infrared_calculation.true_simulation_area_size \
-           + 2 * settings.infrared_calculation.simulation_area_buffer
-    assert pytest.approx(maxy - miny) == settings.infrared_calculation.true_simulation_area_size \
-           + 2 * settings.infrared_calculation.simulation_area_buffer
-
+    assert pytest.approx(maxx - minx) == settings.infrared_calculation.infrared_sim_area_size
+    assert pytest.approx(maxy - miny) == settings.infrared_calculation.infrared_sim_area_size
 
 def test_create_simulation_tasks(sample_simulation_input, sample_all_building_data):
     sim_tasks = create_simulation_tasks(sample_simulation_input)

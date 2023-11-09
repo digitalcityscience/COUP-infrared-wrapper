@@ -8,6 +8,7 @@ from infrared_wrapper_api.infrared_wrapper.infrared import queries
 from infrared_wrapper_api.infrared_wrapper.infrared.queries import run_wind_simulation_query, get_analysis_output_query
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import get_value
 from infrared_wrapper_api.config import settings
+from infrared_wrapper_api.utils import is_cut_prototype_project
 
 
 class InfraredException(Exception):
@@ -68,54 +69,82 @@ class InfraredConnector:
 connector = InfraredConnector()
 
 
-# for now every calcuation request creates a new infrared project, as calculation bbox is set on project level
-def create_new_project(self):
-    print("creating new project")
-    self.delete_existing_project_with_same_name()
+"""
+PROJECT CREATION / DELETION / IDS
+"""
 
-    # create new project
-    query = wind.queries.create_project_query(
-        self.user.uuid,
-        self.name,
-        self.bbox_sw_corner_wgs[0],
-        self.bbox_sw_corner_wgs[1],
-        self.bbox_size,
-        self.analysis_grid_resolution,
+@retry(
+    stop=stop_after_attempt(5),  # Maximum number of attempts
+    wait=wait_exponential(multiplier=1, max=20),  # Exponential backoff with a maximum wait time of 10 seconds
+    retry=retry_if_exception_type(InfraredException)  # Retry only on APIError exceptions
+)
+def create_new_project(name):
+    query = queries.create_project_query(
+        user_uuid=connector.user_uuid,
+        name=name,
+        sw_lat=53.5488,
+        sw_long=9.9872,
+        bbox_size=settings.infrared_calculation.infrared_sim_area_size,
+        resolution=settings.infrared_calculation.analysis_resolution
     )
-    # creation of new projects sometimes fails
-    successfully_created = False
+    new_project_response = connector.execute_query(query)
+
+    if not new_project_response["data"]["createNewProject"]["success"]:
+        raise InfraredException("could not create new project")
+
+    return get_value(
+        new_project_response, ["data", "createNewProject", "uuid"]
+    )
+
+
+def get_all_cut_prototype_projects_uuids() -> List[str]:
+    query = queries.get_projects_query(connector.user_uuid)
+
     try:
-        new_project_response = execute_query(query, self.user)
-        successfully_created = new_project_response["data"]["createNewProject"][
-            "success"
-        ]
-        print("project name %s , created: %s" % (self.name, successfully_created))
-        from infrared_wrapper_api.infrared_wrapper.infrared.utils import get_value
-        project_uuid = get_value(
-            new_project_response, ["data", "createNewProject", "uuid"]
+        all_projects = get_value(
+            connector.execute_query(query),
+            ["data", "getProjectsByUserUuid", "infraredSchema", "clients", connector.user_uuid, "projects"]
         )
-        project_uuid = project_uuid
-        snapshot__uuid = get_root_snapshot_id(project_uuid)
+    except KeyError:
+        print("no projects for user")
+        return []
 
-        return project_uuid, snapshot__uuid
+    return [
+        uuid
+        for uuid in all_projects.keys()
+        if is_cut_prototype_project(all_projects[uuid]["projectName"])
+    ]
 
-    except Exception as e:
-        print("could not create new project", e)
-        self.create_new_project()
 
-    # TODO LUIS RETRY METHOD?
-    if not successfully_created:
-        print(
-            "project not sucessfully created name %s , %s uuid"
-            % (self.name, self.project_uuid)
-        )
-        # check if the project got initiated in the end. if not - delete it and recreate.
-        time.sleep(1)
-        create_new_project()
+def get_root_snapshot_id(project_uuid) -> str:
+    query = queries.get_snapshot_query(project_uuid)
+
+    snapshot = connector.execute_query(query)
+    graph_snapshots_path = ["data", "getSnapshotsByProjectUuid", "infraredSchema", "clients", connector.user_uuid,
+                            "projects", project_uuid, "snapshots"]
+
+    return list(get_value(snapshot, graph_snapshots_path).keys())[0]  # root snapshot is the first (and only) one.
+    # the root snapshot of the infrared project will be used to create buildings and perform analysis
+
+
+def get_project_name(project_uuid) -> str:
+    query = queries.get_snapshot_query(project_uuid)
+
+    snapshot = connector.execute_query(query)
+    name_path = ["data", "getSnapshotsByProjectUuid", "infraredSchema", "clients", connector.user_uuid,
+                            "projects", project_uuid, "projectName"]
+
+    return get_value(snapshot, name_path)
+
 
 
 def delete_project(project_uuid: str):
-    connector.execute_query(queries.delete_project_query(user_uuid, project_uuid))
+    connector.execute_query(queries.delete_project_query(connector.user_uuid, project_uuid))
+
+
+"""
+BUILDINGS AND STREETS
+"""
 
 
 @retry(
@@ -134,16 +163,14 @@ def create_new_buildings(snapshot_uuid: str, new_buildings: dict):
             f"could not create buildings! {new_bld_response}",
         )
         print(f"Query {query}")
-        # TODO failed buildindings until it works?
-        # create_new_building(new_building)
 
 
-def get_all_building_uuids_for_project(project_uuid: str, snapshot_uuid: str) -> List[str]:
+def get_all_project_geometry_objects(project_uuid: str, snapshot_uuid: str) -> dict:
     snapshot_geometries = connector.execute_query(
         queries.get_geometry_objects_in_snapshot_query(snapshot_uuid)
     )
 
-    building_path = [
+    geometries_path = [
         "data",
         "getSnapshotGeometryObjects",
         "infraredSchema",
@@ -153,15 +180,32 @@ def get_all_building_uuids_for_project(project_uuid: str, snapshot_uuid: str) ->
         project_uuid,
         "snapshots",
         snapshot_uuid,
-        "buildings",
     ]
     try:
-        buildings = get_value(snapshot_geometries, building_path)
+        return get_value(snapshot_geometries, geometries_path)
     except Exception:
         print(f"could not get buildings for project uuid {project_uuid}")
         return {}
 
-    return buildings.keys()
+
+def get_all_building_uuids_for_project(project_uuid: str, snapshot_uuid: str) -> List[str]:
+    all_geometries = get_all_project_geometry_objects(project_uuid, snapshot_uuid)
+
+    try:
+        return all_geometries["buildings"].keys()
+    except Exception:
+        print(f"could not get buildings for project uuid {project_uuid}")
+        return []
+
+
+def get_all_street_uuids_for_project(project_uuid: str, snapshot_uuid: str) -> List[str]:
+    all_geometries = get_all_project_geometry_objects(project_uuid, snapshot_uuid)
+
+    try:
+        return all_geometries["streets"].keys()
+    except Exception:
+        print(f"could not get streets for project uuid {project_uuid}")
+        return []
 
 
 def delete_buildings(snapshot_uuid: str, building_uuids: List[str]):
@@ -172,35 +216,23 @@ def delete_buildings(snapshot_uuid: str, building_uuids: List[str]):
     all_success = all(entry.get("success", False) for entry in response["data"].values())
 
     if not all_success:
-        print(f"COULD NOT DELETE ALL BUILINGS {response.json()}")
-        # TODO delete project then?
+        print(f"COULD NOT DELETE ALL BUILDINGS {response.json()}")
 
 
-def get_all_projects_for_user():
-    query = queries.get_projects_query(connector.user_uuid)
+def delete_streets(snapshot_uuid: str, streets_uuids: List[str]):
+    response = connector.execute_query(
+        queries.delete_streets(snapshot_uuid, streets_uuids)
+    )
 
-    projects = {}
-    try:
-        projects = get_value(
-            connector.execute_query(query),
-            ["data", "getProjectsByUserUuid", "infraredSchema", "clients", connector.user_uuid, "projects"]
-        )
+    all_success = all(entry.get("success", False) for entry in response["data"].values())
 
-    except KeyError:
-        print("no projects for user")
-
-    return projects
+    if not all_success:
+        print(f"COULD NOT DELETE ALL STREETS {response.json()}")
 
 
-def get_root_snapshot_id(project_uuid):
-    query = queries.get_snapshot_query(project_uuid)
-
-    snapshot = connector.execute_query(query)
-    graph_snapshots_path = ["data", "getSnapshotsByProjectUuid", "infraredSchema", "clients", connector.user_uuid,
-                            "projects", project_uuid, "snapshots"]
-
-    return list(get_value(snapshot, graph_snapshots_path).keys())[0]  # root snapshot is the first (and only) one.
-    # the root snapshot of the infrared project will be used to create buildings and perform analysis
+"""
+SIMULATIONS
+"""
 
 
 def activate_sunlight_analysis_capability(user_uuid, user_token, project_uuid: str):

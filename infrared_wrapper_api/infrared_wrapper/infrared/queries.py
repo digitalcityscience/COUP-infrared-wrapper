@@ -282,28 +282,13 @@ def get_geometry_objects_in_snapshot_query(snapshot_uuid):
     return template.safe_substitute({"snapshot_uuid": snapshot_uuid})
 
 
-def delete_building(snapshot_uuid, building_uuid):
-    template = Template("""
-                mutation {
-                  deleteBuilding(
-                    uuid: "$building_uuid",
-                    snapshotUuid: "$snapshot_uuid"
-                  ) {
-                    success
-                  }
-                }
-                """)
-
-    return template.safe_substitute({"snapshot_uuid": snapshot_uuid, "building_uuid": building_uuid})
-
-
 def delete_buildings(snapshot_uuid, building_uuids: List[str]):
     """
     delObject0: deleteBuilding ||| execution time: 2.350510597229004
     """
     single_building_delete_template = Template("""
                 delObject$count: deleteBuilding(
-                uuid: "$building_uuid"
+                uuid: "$building_uuid",
                 snapshotUuid:"$snapshot_uuid"
                 ){
                     success
@@ -329,17 +314,33 @@ def delete_buildings(snapshot_uuid, building_uuids: List[str]):
                     ).safe_substitute({"all_building_queries": all_buildings_queries})
 
 
-def delete_street(snapshot_uuid, street_uuid):
-    # TODO in setup delete all streets
-    template = Template("""
-                mutation {
-                  deleteStreetSegment(
-                    uuid: "$street_uuid",
-                    snapshotUuid: "$snapshot_uuid"
-                  ) {
-                    success
-                  }
-                }
-                """)
+def delete_streets(snapshot_uuid: str, street_uuids: List[str]):
+    """
+    delObject0: deleteStreet ||| execution time: 2.350510597229004
+    """
+    single_street_delete_template = Template("""
+           delObject$count: deleteStreetSegment(
+            uuid: "$street_uuid",
+            snapshotUuid: "$snapshot_uuid"
+          ) {
+            success
+          }
+        }
+    """)
 
-    return template.safe_substitute({"snapshot_uuid": snapshot_uuid, "street_uuid": street_uuid})
+    all_streets_queries = "".join(
+        single_street_delete_template.safe_substitute(
+            {
+                "count": key,
+                "snapshot_uuid": snapshot_uuid,
+                "building_uuid": street_uuid,
+            }
+        )
+        for key, street_uuid in enumerate(street_uuids)
+    )
+    return Template("""
+            mutation {
+                all_streets_queries
+                }
+            """
+                    ).safe_substitute({"all_streets_queries": all_streets_queries})

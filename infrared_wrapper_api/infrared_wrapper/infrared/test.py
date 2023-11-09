@@ -6,7 +6,7 @@ import geopandas as gpd
 from unittest.mock import patch
 
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_all_building_uuids_for_project, \
-    InfraredConnector, run_wind_wind_simulation, get_analysis_output
+    InfraredConnector, run_wind_wind_simulation, get_analysis_output, get_all_cut_prototype_projects_uuids
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_result import InfraredResult, crop_buffer, \
     georeference_infrared_result
@@ -43,7 +43,7 @@ def get_idle_project_id():
     with patch("infrared_wrapper_api.utils.update_infrared_project_status_in_redis") as mock_update_status, \
             patch("infrared_wrapper_api.dependencies.cache.put") as mock_cache_put, \
             patch("infrared_wrapper_api.dependencies.cache.get", return_value={"is_busy": False}) as mocK_cache_get:
-        return find_idle_infrared_project()
+        return find_idle_infrared_project(get_all_cut_prototype_projects_uuids())
 
 
 def test_login():
@@ -59,7 +59,7 @@ def test_getting_idle_project():
     with patch("infrared_wrapper_api.utils.update_infrared_project_status_in_redis") as mock_update_status, \
             patch("infrared_wrapper_api.dependencies.cache.put") as mock_cache_put, \
             patch("infrared_wrapper_api.dependencies.cache.get", return_value={"is_busy": False}) as mocK_cache_get:
-        project_uuid = find_idle_infrared_project()
+        project_uuid = find_idle_infrared_project(get_all_cut_prototype_projects_uuids())
 
         # Assertions
         mocK_cache_get.assert_called()
@@ -75,14 +75,13 @@ def test_create_infrared_project():
     assert project.snapshot_uuid is not None
 
 
-
-def test_update_and_delete_buildings_at_infrared(sample_all_building_data, sample_simulation_area):
+def test_update_and_delete_buildings_at_infrared(sample_building_data, sample_simulation_area):
     project_uuid = get_idle_project_id()
     project = InfraredProject(project_uuid)
-    project.update_buildings_at_infrared(sample_all_building_data, sample_simulation_area)
+    project.update_buildings_at_infrared(sample_building_data, sample_simulation_area)
 
     # Assertions
-    building_count = len(sample_all_building_data["features"])
+    building_count = len(sample_building_data["features"])
     assert len(get_all_building_uuids_for_project(project.project_uuid, project.snapshot_uuid)) == building_count
 
     # Run wind simulation
@@ -104,8 +103,7 @@ def test_update_and_delete_buildings_at_infrared(sample_all_building_data, sampl
     assert (result.get("analysisOutputData")[0][0] * 10) % 2 == 0  # result should be 0, 0.2, 0.4,...
 
     # check the dimensions of the simulation area
-    assert result.get("analysisOutputE") == settings.infrared_calculation.true_simulation_area_size \
-           + 2 * settings.infrared_calculation.simulation_area_buffer
+    assert result.get("analysisOutputE") == settings.infrared_calculation.infrared_sim_area_size
     assert result.get("analysisOutputN") == result.get("analysisOutputE")
 
     # Delete the buildings again
@@ -148,10 +146,10 @@ def test_handling_result(sample_simulation_result):
 
 
 def test_getting_final_georeferenced_result(sample_simulation_result, sample_simulation_area):
-    sim_area_gdf = gpd.GeoDataFrame.from_features(sample_simulation_area["features"], "EPSG:4326")
+    sim_area_gdf = gpd.GeoDataFrame.from_features(sample_simulation_area["features"], "EPSG:25832")
 
-    result = georeference_infrared_result(sample_simulation_result, sim_area_gdf.to_crs("EPSG:25832").total_bounds)
+    result = georeference_infrared_result(sample_simulation_result, sim_area_gdf.total_bounds)
     result_gdf = gpd.GeoDataFrame.from_features(result["features"])
 
     # check that the result really is within the simulation area.
-    assert result_gdf.within(sim_area_gdf.unary_union.convex_hull).all()
+    assert result_gdf.within(sim_area_gdf.to_crs("EPSG:4326").unary_union.convex_hull).all()

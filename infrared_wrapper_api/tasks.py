@@ -4,11 +4,11 @@ from fastapi.encoders import jsonable_encoder
 
 from infrared_wrapper_api.dependencies import cache, celery_app
 from infrared_wrapper_api.infrared_wrapper.data_preparation import create_simulation_tasks
+from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_all_cut_prototype_projects_uuids
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import reproject_geojson
 from infrared_wrapper_api.models.calculation_input import WindSimulationTask
-from infrared_wrapper_api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis, \
-    get_all_infrared_project_uuids
+from infrared_wrapper_api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis
 from infrared_wrapper_api.infrared_wrapper.infrared.simulation import do_wind_simulation
 
 logger = get_task_logger(__name__)
@@ -61,7 +61,7 @@ def compute_task_wind(simulation_input: dict) -> dict:
     # split request in several simulation tasks with a simulation area of max 500m*500m
     simulation_tasks = create_simulation_tasks(simulation_input)
     logger.info(f"This simulation is split into {len(simulation_tasks)} subtasks")
-    all_infrared_project_uuids = get_all_infrared_project_uuids()
+    all_infrared_project_uuids = get_all_cut_prototype_projects_uuids()
 
     # trigger calculation and collect result for project in infrared_projects
     task_group = group(

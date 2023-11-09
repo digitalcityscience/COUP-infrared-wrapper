@@ -5,8 +5,8 @@ from shapely.geometry import Polygon
 import geopandas
 
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_root_snapshot_id, \
-    get_all_building_uuids_for_project, delete_buildings, create_new_buildings
-from infrared_wrapper_api.infrared_wrapper.infrared.models import InfraredProjectModel
+    get_all_building_uuids_for_project, delete_buildings, delete_streets, create_new_buildings, \
+    get_all_street_uuids_for_project
 
 config = None
 
@@ -24,9 +24,6 @@ class InfraredProject:
 
         self.snapshot_uuid = get_root_snapshot_id(project_uuid)
 
-    # TODO wie machen wir das am besten mit wind vs sun simulation. 
-    #  Sollte sichergestellt sein, das buildigns up to date sind + aber nicht doppelt updaten.
-    # ich glaub es ist am besten das direkt in simulate.py zu machen. Dort erst update buildings aufrufen und dann die calc triggern
     def update_buildings_at_infrared(self, buildings: dict, simulation_area: dict):
         # await self.delete_all_buildings()   # loosing too much time here. Remember to delete buildings after sim!
 
@@ -57,24 +54,15 @@ class InfraredProject:
             building_uuids
         )
 
+    # deletes all streets for project on endpoint
+    def delete_all_streets(self):
+        streets_uuids = get_all_street_uuids_for_project(self.project_uuid, self.snapshot_uuid)
 
-def create_new_project_at_infrared(
-        # infrared_user: InfraredUser,
-        name: str,
-        bbox_utm: Polygon,  # bbox ist scheissegal, invent one.
-        resolution=10
-        # TODO resolution=InfraredCalculation.analysis_resolution,
-) -> InfraredProjectModel:
-    # DO THIS IN THE SETUP MODULE
-    delete_existing_project_with_same_name()
+        if not streets_uuids:
+            print(f"no streets to delete for project {self.project_uuid}")
+            return
 
-    project_uuid, snapshot_uuid = create_project(
-
-    )
-
-    # clean the project from OSM geometries that infrared automatically creates
-    delete_all_buildings()
-
-    # update buildings here?
-
-    return project_uuid, snapshot_uuid
+        delete_streets(
+            self.snapshot_uuid,
+            streets_uuids
+        )

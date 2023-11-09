@@ -42,6 +42,7 @@ class InfraredCommunication(BaseSettings):
     url: str = Field(..., env="INFRARED_URL")
     user: str = Field(..., env="INFRARED_USERNAME")
     password: str = Field(..., env="INFRARED_PASSWORD")
+    infrared_projects_count: int = Field(default=5)
 
 
 class InfraredCalculation(BaseSettings):
