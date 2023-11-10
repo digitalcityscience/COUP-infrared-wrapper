@@ -3,6 +3,7 @@ import json
 import logging
 from enum import Enum
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from typing import Literal
 
 from infrared_wrapper_api.infrared_wrapper.infrared.models import ProjectStatus
 from infrared_wrapper_api.dependencies import cache
@@ -27,6 +28,21 @@ def enum_to_list(enum_class: Enum) -> list[str]:
 def load_json_file(path: str) -> dict:
     with open(path, "r") as f:
         return json.loads(f.read())
+
+
+def log_request(sim_type: Literal["wind", "sun"]):
+    
+    if current_count := cache.get(f"sim_requests_{sim_type}") is None:
+        current_count = 0
+
+    cache.put(
+        f"sim_requests_{sim_type}",
+        current_count + 1
+    )
+
+
+def get_request_log_count(sim_type: Literal["wind", "sun"]):
+    return cache.get(key=f"sim_requests_{sim_type}")
 
 
 def update_infrared_project_status_in_redis(project_uuid: str, is_busy: bool):

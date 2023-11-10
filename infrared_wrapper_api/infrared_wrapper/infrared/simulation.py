@@ -7,6 +7,7 @@ from infrared_wrapper_api.infrared_wrapper.infrared.infrared_result import geore
 
 from celery.utils.log import get_task_logger
 
+from infrared_wrapper_api.utils import log_request
 
 logger = get_task_logger(__name__)
 
@@ -16,21 +17,25 @@ def do_simulation(
     sim_task: dict
 ) -> dict:
     infrared_project = prepare_infrared_project(project_uuid, sim_task)
+    sim_type = sim_task["sim_type"]
 
-    if sim_task["sim_type"] == "wind":
+    if sim_type == "wind":
         result_uuid = trigger_wind_simulation(
             snapshot_uuid=infrared_project.snapshot_uuid,
             wind_direction=sim_task["wind_direction"],
             wind_speed=sim_task["wind_speed"]
         )
-    elif sim_task["sim_type"] == "sun":
+    elif sim_type == "sun":
         result_uuid = trigger_sun_simulation(
             snapshot_uuid=infrared_project.snapshot_uuid,
         )
     else:
-        raise NotImplementedError(f"requested unknown simulation type {sim_task['sim_type']}")
+        raise NotImplementedError(f"requested unknown simulation type {sim_type}")
 
     logger.info(f"Simulation result has infrared uuid {result_uuid}")
+
+    # increase the logged sim requests by 1
+    log_request(sim_type)
 
     return collect_and_format_result(infrared_project, sim_task, result_uuid)
 
