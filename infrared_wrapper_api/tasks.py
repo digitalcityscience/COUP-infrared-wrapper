@@ -1,42 +1,43 @@
 from celery import signals, group, chain
 from celery.utils.log import get_task_logger
 from fastapi.encoders import jsonable_encoder
+from typing import Literal
 
 from infrared_wrapper_api.dependencies import cache, celery_app
 from infrared_wrapper_api.infrared_wrapper.data_preparation import create_simulation_tasks
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_all_cut_prototype_projects_uuids
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import reproject_geojson
-from infrared_wrapper_api.models.calculation_input import WindSimulationTask
 from infrared_wrapper_api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis
-from infrared_wrapper_api.infrared_wrapper.infrared.simulation import do_wind_simulation
+from infrared_wrapper_api.infrared_wrapper.infrared.simulation import do_simulation
 
 logger = get_task_logger(__name__)
 
 
-# trigger calculation for a infrared project
+# trigger calculation for an infrared project
 @celery_app.task()
-def task_do_wind_simulation(project_uuid: str, wind_sim_task: dict) -> dict:
-    task = WindSimulationTask(**wind_sim_task)
+def task__do_simulation(project_uuid: str, sim_task: dict) -> dict:
 
-    if result := cache.get(key=task.celery_key):
+    # check if result for this task is already cached. Return from cache.
+    if result := cache.get(key=sim_task["celery_key"]):
         logger.info(
-            f"Result fetched from cache with key: {task.celery_key}"
+            f"Result fetched from cache with key: {sim_task['celery_key']}"
         )
         return result
 
     logger.info(
-        f"Starting calculation ...  Result with key: {task.celery_key} not found in cache."
+        f"Starting calculation ...  Result with key: {sim_task['celery_key']} not found in cache."
     )
 
-    return do_wind_simulation(
+    return do_simulation(
         project_uuid=project_uuid,
-        wind_sim_task=wind_sim_task
+        sim_task=sim_task
     )
+
 
 
 @celery_app.task()
-def task_cache_and_return_result(geojson_result: dict, celery_key: str) -> dict:
+def task__cache_and_return_result(geojson_result: dict, celery_key: str) -> dict:
     # cache result if sucessful
     if geojson_result.get("features", []) == 0:
         logger.error("GOT EMPTY RESULT")
@@ -49,7 +50,7 @@ def task_cache_and_return_result(geojson_result: dict, celery_key: str) -> dict:
 
 
 @celery_app.task()
-def compute_task_wind(simulation_input: dict) -> dict:
+def task__compute(simulation_input: dict, sim_type: Literal["wind", "sun"]) -> dict:
 
     # reproject buildings to metric system for internal use
     simulation_input["buildings"] = reproject_geojson(
@@ -59,20 +60,20 @@ def compute_task_wind(simulation_input: dict) -> dict:
     )
 
     # split request in several simulation tasks with a simulation area of max 500m*500m
-    simulation_tasks = create_simulation_tasks(simulation_input)
+    simulation_tasks = create_simulation_tasks(simulation_input, sim_type)
     logger.info(f"This simulation is split into {len(simulation_tasks)} subtasks")
-    all_infrared_project_uuids = get_all_cut_prototype_projects_uuids()
+    all_project_uuids = get_all_cut_prototype_projects_uuids()
 
     # trigger calculation and collect result for project in infrared_projects
     task_group = group(
         [
             # create task chain for each bbox. tasks in chain will be executed sequentially
             chain(
-                task_do_wind_simulation.s(
-                    project_uuid=find_idle_infrared_project(all_infrared_project_uuids),
-                    wind_sim_task=jsonable_encoder(simulation_task)
+                task__do_simulation.s(
+                    project_uuid=find_idle_infrared_project(all_project_uuids),
+                    sim_task=jsonable_encoder(simulation_task)
                 ),  # returns geojson result
-                task_cache_and_return_result.s(simulation_task.celery_key)  # has return val of previous func as 1st arg
+                task__cache_and_return_result.s(simulation_task.celery_key)  # has return val of previous func as 1st arg
             )
             for simulation_task in simulation_tasks
         ]
@@ -83,13 +84,6 @@ def compute_task_wind(simulation_input: dict) -> dict:
 
     return group_result.id
 
-
-@celery_app.task()
-def compute_task_sun(task_def: dict) -> dict:
-    # TODO here we need to activate sun first at infrared
-    raise NotImplementedError("no sun today")
-
-    # return run_noise_calculation(task_def)
 
 
 @signals.task_postrun.connect
@@ -114,57 +108,3 @@ def task_postrun_handler(task_id, task, *args, **kwargs):
         # set project to be not busy again.
         update_infrared_project_status_in_redis(project_uuid=project_uuid, is_busy=False)
         logger.info(f"Set project to 'is_busy=False' for project: {project_uuid}")
-
-
-if __name__ == "__main__":
-    print("test")
-
-
-    buildings = {
-        "type": "FeatureCollection",
-        "features": [
-            {
-                "type": "Feature",
-                "properties": {
-                    "height": 40
-                },
-                "geometry": {
-                    "coordinates": [
-                        [
-                            [
-                                10.003865170424689,
-                                53.5405666300465
-                            ],
-                            [
-                                10.002973724330474,
-                                53.53973588549286
-                            ],
-                            [
-                                10.005870924135678,
-                                53.53989240382907
-                            ],
-                            [
-                                10.00578988358211,
-                                53.540277677268165
-                            ],
-                            [
-                                10.003865170424689,
-                                53.5405666300465
-                            ]
-                        ]
-                    ],
-                    "type": "Polygon"
-                }
-            }
-        ]
-    }
-
-    task_definition = {
-        "buildings": buildings,
-        "wind_speed": 20,
-        "wind_direction": 45
-    }
-
-    compute_task_wind(task_definition)
-
-

@@ -5,7 +5,8 @@ from typing import List
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from infrared_wrapper_api.infrared_wrapper.infrared import queries
-from infrared_wrapper_api.infrared_wrapper.infrared.queries import run_wind_simulation_query, get_analysis_output_query
+from infrared_wrapper_api.infrared_wrapper.infrared.queries import run_wind_simulation_query, get_analysis_output_query, \
+    run_sunlight_hours_service_query, activate_sun_service_query
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import get_value
 from infrared_wrapper_api.config import settings
 from infrared_wrapper_api.utils import is_cut_prototype_project
@@ -235,15 +236,15 @@ SIMULATIONS
 """
 
 
-def activate_sunlight_analysis_capability(user_uuid, user_token, project_uuid: str):
-    query = queries.activate_sun_service_query(
-        user_uuid, project_uuid
+def activate_sunlight_analysis_capability(project_uuid: str):
+    query = activate_sun_service_query(
+        connector.user_uuid, project_uuid
     )
-    response = connector.execute_query(query, user_token)
+    response = connector.execute_query(query)
     print("activate sunlight hours calc service", response)
 
 
-def run_wind_wind_simulation(snapshot_uuid, wind_direction, wind_speed) -> str:
+def trigger_wind_simulation(snapshot_uuid, wind_direction, wind_speed) -> str:
     query = run_wind_simulation_query(
         snapshot_uuid=snapshot_uuid,
         wind_direction=wind_direction,
@@ -252,10 +253,25 @@ def run_wind_wind_simulation(snapshot_uuid, wind_direction, wind_speed) -> str:
 
     try:
         # TODO LOG REQUEST SOMEHOW
+        print("TRIGGERING WIND SIM")
         response = connector.execute_query(query)
         return get_value(response, ["data", "runServiceWindComfort", "uuid"])
     except Exception as exception:
         print(f"calculation for wind FAILS! for snapshot {snapshot_uuid} with exception {exception}")
+
+
+def trigger_sun_simulation(snapshot_uuid) -> str:
+    query = run_sunlight_hours_service_query(
+        snapshot_uuid=snapshot_uuid
+    )
+
+    try:
+        # TODO LOG REQUEST SOMEHOW
+        print("TRIGGERING SUN SIM")
+        response = connector.execute_query(query)
+        return get_value(response, ["data", "runServiceSunlightHours", "uuid"])
+    except Exception as exception:
+        print(f"calculation for SUN FAILS! for snapshot {snapshot_uuid} with exception {exception}")
 
 
 @retry(

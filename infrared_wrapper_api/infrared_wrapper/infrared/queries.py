@@ -116,11 +116,14 @@ def create_buildings(snapshot_uuid, buildings: List[dict]):
 
 
 def activate_sun_service_query(user_uuid, project_uuid):
-    template = Template("""
-    mutation {    
+
+    # copied from infrared
+    # 'mutation {\n    modifyProject (\n      uuid: ".....SECRET..."\n      sessionSettings: "{\\"mode\\":\\"context\\",\\"analysis\\":[{\\"name\\":\\"Sunlight Hours\\",\\"version\\":0,\\"parameters\\":[],\\"uuid\\":null,\\"index\\":\\"0\\"}]}"\n      userUuid:"...SECRET....."\n    ) {\n      success\n    }\n  }\n  '
+
+    template = Template("""mutation {    
       modifyProject (
         uuid: "$project_uuid"
-        sessionSettings: {"mode":"context","analysis":[{"name":"Sunlight Hours","version":0,"parameters":[],"uuid":null,"index":"0"}]}"
+        sessionSettings: "{\\"mode\\":\\"context\\",\\"analysis\\":[{\\"name\\":\\"Sunlight Hours\\",\\"version\\":0,\\"parameters\\":[],\\"uuid\\":null,\\"index\\":\\"0\\"}]}"
         userUuid:"$user_uuid"
       ) {
         success

@@ -1,31 +1,45 @@
 import math
-from typing import List
+from typing import List, Literal
 import json
 
 import geopandas as gpd
 from shapely.geometry import box
 from infrared_wrapper_api.config import settings
-from infrared_wrapper_api.models.calculation_input import WindSimulationTask
+from infrared_wrapper_api.models.calculation_input import WindSimulationTask, SunSimulationTask
 
 
-def create_simulation_tasks(task_def: dict) -> List[WindSimulationTask]:
-
+def create_simulation_tasks(
+        task_def: dict,
+        sim_type: Literal["wind", "sun"]
+) -> List[WindSimulationTask | SunSimulationTask]:
     buildings_gdf = gpd.GeoDataFrame.from_features(task_def["buildings"]["features"], crs="EPSG:25832")
 
     # subdivide the region with all buildings into simulation area sized bboxes
     matrix = create_bbox_matrix(buildings_gdf)
 
-    simulation_tasks = []
+    return [create_simulation_task(task_def, buildings_gdf, bbox, sim_type) for bbox in matrix]
 
-    for bbox in matrix:
-        simulation_tasks.append(WindSimulationTask(
+
+def create_simulation_task(
+        task_def: dict,
+        buildings_gdf: gpd.GeoDataFrame,
+        bbox: box,
+        sim_type: Literal["wind", "sun"]
+) -> WindSimulationTask | SunSimulationTask:
+
+    if sim_type == "wind":
+        return WindSimulationTask(
             simulation_area=json.loads(bbox.to_json()),
             buildings=json.loads(buildings_gdf.clip(bbox).to_json()),
             wind_speed=task_def["wind_speed"],
             wind_direction=task_def["wind_direction"],
-        ))
+        )
 
-    return simulation_tasks
+    if sim_type == "sun":
+        return SunSimulationTask(
+            simulation_area=json.loads(bbox.to_json()),
+            buildings=json.loads(buildings_gdf.clip(bbox).to_json())
+        )
 
 
 def create_bbox_matrix(buildings: gpd.GeoDataFrame) -> List[gpd.GeoDataFrame]:

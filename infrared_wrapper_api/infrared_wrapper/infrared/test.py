@@ -6,7 +6,8 @@ import geopandas as gpd
 from unittest.mock import patch
 
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_all_building_uuids_for_project, \
-    InfraredConnector, run_wind_wind_simulation, get_analysis_output, get_all_cut_prototype_projects_uuids
+    InfraredConnector, trigger_wind_simulation, get_analysis_output, get_all_cut_prototype_projects_uuids, \
+    trigger_sun_simulation, activate_sunlight_analysis_capability
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_result import InfraredResult, crop_buffer, \
     georeference_infrared_result
@@ -39,7 +40,7 @@ def sample_simulation_result():
 
 
 def get_idle_project_id():
-    # Mock functions
+    # Mock functions so that the projects are not marked busy!
     with patch("infrared_wrapper_api.utils.update_infrared_project_status_in_redis") as mock_update_status, \
             patch("infrared_wrapper_api.dependencies.cache.put") as mock_cache_put, \
             patch("infrared_wrapper_api.dependencies.cache.get", return_value={"is_busy": False}) as mocK_cache_get:
@@ -85,7 +86,7 @@ def test_update_and_delete_buildings_at_infrared(sample_building_data, sample_si
     assert len(get_all_building_uuids_for_project(project.project_uuid, project.snapshot_uuid)) == building_count
 
     # Run wind simulation
-    result_uuid = run_wind_wind_simulation(
+    result_uuid = trigger_wind_simulation(
         snapshot_uuid=project.snapshot_uuid,
         wind_direction=45,
         wind_speed=15
@@ -110,6 +111,26 @@ def test_update_and_delete_buildings_at_infrared(sample_building_data, sample_si
     project = InfraredProject(project_uuid)
     project.delete_all_buildings()
     assert len(get_all_building_uuids_for_project(project.project_uuid, project.snapshot_uuid)) == 0
+
+
+
+def test_sun_sim():
+    project_uuid = get_idle_project_id()
+    project = InfraredProject(project_uuid)
+    # Run sun simulation
+    activate_sunlight_analysis_capability(project_uuid)
+    result_uuid = trigger_sun_simulation(
+        snapshot_uuid=project.snapshot_uuid
+    )
+    assert result_uuid is not None
+    # and fetch result
+    result = get_analysis_output(project.project_uuid, project.snapshot_uuid, result_uuid)
+
+    # check result looks like expected
+    assert result is not None
+    assert isinstance(result.get("analysisOutputData"), list)
+    assert isinstance(result.get("analysisOutputData")[0], list)
+    assert isinstance(result.get("analysisOutputData")[0][0], float)
 
 
 def test_set_project_busy_status_false():

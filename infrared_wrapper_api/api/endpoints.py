@@ -22,8 +22,8 @@ async def process_task_wind(
     calculation_input: WindSimulationInput,
 ):
     calculation_task = WindSimulationInput(**calculation_input.dict())
+    result = tasks.task__compute.delay(jsonable_encoder(calculation_task))
 
-    result = tasks.compute_task_wind.delay(jsonable_encoder(calculation_task))
     return {"taskId": result.get()}\
 
 
@@ -33,17 +33,9 @@ async def process_task_sun(
     calculation_input: SunSimulationInput,
 ):
     calculation_task = SunSimulationTask(**calculation_input.dict())
-    if result := cache.get(key=calculation_task.celery_key):
-        logger.info(
-            f"Result fetched from cache with key: {calculation_task.celery_key}"
-        )
-        return result
+    result = tasks.task__compute.delay(jsonable_encoder(calculation_task))
 
-    logger.info(
-        f"Result with key: {calculation_task.celery_key} not found in cache. Starting calculation ..."
-    )
-    result = tasks.compute_task_sun.delay(jsonable_encoder(calculation_task))
-    return {"taskId": result.id}
+    return {"taskId": result.get()}
 
 
 @router.get("/tasks/{task_id}")

@@ -50,6 +50,10 @@ class InfraredSimulationTask(BaseModelStrict):
     simulation_area: dict  # geojson with area bbox
 
     @abstractmethod
+    def sim_type(self):
+        pass
+
+    @abstractmethod
     def hash(self):
         pass
 
@@ -59,6 +63,10 @@ class InfraredSimulationTask(BaseModelStrict):
 
 
 class WindSimulationTask(InfraredSimulationTask, WindSimulationInput):
+
+    @property
+    def sim_type(self) -> str:
+        return "wind"
 
     @property
     def hash(self) -> str:
@@ -79,12 +87,15 @@ class WindSimulationTask(InfraredSimulationTask, WindSimulationInput):
 
 
 class SunSimulationTask(InfraredSimulationTask, SunSimulationInput):
+
+    @property
+    def sim_type(self) -> str:
+        return "sun"
+
     @property
     def hash(self) -> str:
         return hash_dict({"buildings": self.buildings})
 
     @property
     def celery_key(self) -> str:
-        return f"{self.hash}"
-
-
+        return f"{self.hash}_sun"

@@ -8,7 +8,7 @@ from infrared_wrapper_api.infrared_wrapper.data_preparation import create_simula
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import reproject_geojson
 from infrared_wrapper_api.models.calculation_input import WindSimulationTask
 from infrared_wrapper_api.config import settings
-from infrared_wrapper_api.tasks import task_do_wind_simulation
+from infrared_wrapper_api.tasks import task__do_simulation
 
 
 @pytest.fixture
@@ -68,8 +68,9 @@ def test_create_bbox_matrix(sample_all_building_data):
     assert pytest.approx(maxx - minx) == settings.infrared_calculation.infrared_sim_area_size
     assert pytest.approx(maxy - miny) == settings.infrared_calculation.infrared_sim_area_size
 
+
 def test_create_simulation_tasks(sample_simulation_input, sample_all_building_data):
-    sim_tasks = create_simulation_tasks(sample_simulation_input)
+    sim_tasks = create_simulation_tasks(sample_simulation_input, "wind")
 
     for test_sim_task in sim_tasks:
         assert type(test_sim_task) == WindSimulationTask
@@ -84,44 +85,41 @@ def test_create_simulation_tasks(sample_simulation_input, sample_all_building_da
 
 def test_task_not_cached(sample_simulation_area, sample_single_task_building_data):
     # Mock functions that require a redis instance to run.
-    with patch("infrared_wrapper_api.dependencies.cache.get", return_value=None) as mock_cache_get, \
-            patch(
-                "infrared_wrapper_api.tasks.do_wind_simulation",
-                ) as mock_do_wind_sim:
+    with patch("infrared_wrapper_api.tasks.cache.get", return_value=None) as mock_cache_get, \
+            patch("infrared_wrapper_api.tasks.do_simulation") as mock_do_sim:
         # call function
         mock_project_uuid = "abc123"
-        sample_wind_sim_task = {
-            "simulation_area": sample_simulation_area,
-            "buildings": sample_single_task_building_data,
-            "wind_speed": 15,
-            "wind_direction": 15
-        }
+        sample_wind_sim_task = WindSimulationTask(
+            simulation_area=sample_simulation_area,
+            buildings=sample_single_task_building_data,
+            wind_speed=15,
+            wind_direction=15
+        )
 
-        task_do_wind_simulation(mock_project_uuid, sample_wind_sim_task)
+        task__do_simulation(mock_project_uuid, sample_wind_sim_task.dict())
 
         # Assert checking in cache
         mock_cache_get.assert_called()
-        task = WindSimulationTask(**sample_wind_sim_task)
-        mock_cache_get.assert_called_once_with(key=task.celery_key)
+        mock_cache_get.assert_called_once_with(key=sample_wind_sim_task.celery_key)
         # Assert wind simulation is called, as result of task is not cached
-        mock_do_wind_sim.assert_called_once_with(project_uuid=mock_project_uuid, wind_sim_task=sample_wind_sim_task)
+        mock_do_sim.assert_called_once_with(project_uuid=mock_project_uuid, sim_task=sample_wind_sim_task.dict())
 
 
 def test_task_is_cached(sample_simulation_area, sample_single_task_building_data):
     # Mock functions that require a redis instance to run.
-    with patch("infrared_wrapper_api.dependencies.cache.get", return_value={"result": "placeholder"}) as mock_cache_get, \
-            patch("infrared_wrapper_api.infrared_wrapper.infrared.simulation.do_wind_simulation") as mock_do_wind_sim:
+    with patch("infrared_wrapper_api.tasks.cache.get", return_value={"result": "placeholder"}) as mock_cache_get, \
+            patch("infrared_wrapper_api.infrared_wrapper.infrared.simulation.do_simulation") as mock_do_sim:
         # call function
         mock_project_uuid = "abc123"
-        sample_wind_sim_task = {
-            "simulation_area": sample_simulation_area,
-            "buildings": sample_single_task_building_data,
-            "wind_speed": 15,
-            "wind_direction": 15
-        }
-        task_do_wind_simulation(mock_project_uuid, sample_wind_sim_task)
+        sample_wind_sim_task = WindSimulationTask(
+            simulation_area=sample_simulation_area,
+            buildings=sample_single_task_building_data,
+            wind_speed=15,
+            wind_direction=15
+        )
+        task__do_simulation(mock_project_uuid, sample_wind_sim_task.dict())
 
         # Assert checking in cache
         mock_cache_get.assert_called()
         # Assert wind simulation is NOT called, as we found result of task in cache
-        mock_do_wind_sim.assert_not_called()
+        mock_do_sim.assert_not_called()
