@@ -138,11 +138,6 @@ def get_project_name(project_uuid) -> str:
     return get_value(snapshot, name_path)
 
 
-
-def delete_project(project_uuid: str):
-    connector.execute_query(queries.delete_project_query(connector.user_uuid, project_uuid))
-
-
 """
 BUILDINGS AND STREETS
 """
@@ -252,7 +247,6 @@ def trigger_wind_simulation(snapshot_uuid, wind_direction, wind_speed) -> str:
     )
 
     try:
-        # TODO LOG REQUEST SOMEHOW
         print("TRIGGERING WIND SIM")
         response = connector.execute_query(query)
         return get_value(response, ["data", "runServiceWindComfort", "uuid"])
@@ -266,7 +260,6 @@ def trigger_sun_simulation(snapshot_uuid) -> str:
     )
 
     try:
-        # TODO LOG REQUEST SOMEHOW
         print("TRIGGERING SUN SIM")
         response = connector.execute_query(query)
         return get_value(response, ["data", "runServiceSunlightHours", "uuid"])

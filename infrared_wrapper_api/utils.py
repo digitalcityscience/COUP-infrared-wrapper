@@ -1,11 +1,9 @@
 import hashlib
 import json
 import logging
-from enum import Enum
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from typing import Literal
 
-from infrared_wrapper_api.infrared_wrapper.infrared.models import ProjectStatus
+from infrared_wrapper_api.infrared_wrapper.infrared.models import ProjectStatus, SimType
 from infrared_wrapper_api.dependencies import cache
 
 logger = logging.getLogger(__name__)
@@ -21,16 +19,12 @@ def hash_dict(dict_) -> str:
     return hashlib.md5(dict_str.encode()).hexdigest()
 
 
-def enum_to_list(enum_class: Enum) -> list[str]:
-    return [member.value for member in enum_class]
-
-
 def load_json_file(path: str) -> dict:
     with open(path, "r") as f:
         return json.loads(f.read())
 
 
-def log_request(sim_type: Literal["wind", "sun"]):
+def log_request(sim_type: SimType):
     
     if current_count := cache.get(f"sim_requests_{sim_type}") is None:
         current_count = 0
@@ -41,7 +35,7 @@ def log_request(sim_type: Literal["wind", "sun"]):
     )
 
 
-def get_request_log_count(sim_type: Literal["wind", "sun"]):
+def get_request_log_count(sim_type: SimType):
     return cache.get(key=f"sim_requests_{sim_type}")
 
 

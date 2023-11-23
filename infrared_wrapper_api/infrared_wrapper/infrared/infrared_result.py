@@ -81,8 +81,7 @@ class InfraredResult:
         return geojson
 
     def check_result_dimensions(self):
-        expected_sim_size = settings.infrared_calculation.true_simulation_area_size \
-                            + 2 * settings.infrared_calculation.simulation_area_buffer
+        expected_sim_size = settings.infrared_calculation.infrared_sim_area_size
 
         if (
                 self.xmax - self.xmin != expected_sim_size
@@ -99,7 +98,7 @@ def georeference_infrared_result(
 
     result_geojson = result.result_to_geojson()
     result_gdf = gpd.GeoDataFrame.from_features(result_geojson["features"])
-    geo_minx, geo_miny, geo_maxx, geo_maxy = total_bounds_simulation_area
+    geo_minx, geo_miny, _, _ = total_bounds_simulation_area
 
     # translate to position of simulation area
     result_gdf["geometry"] = result_gdf.translate(geo_minx, geo_miny)

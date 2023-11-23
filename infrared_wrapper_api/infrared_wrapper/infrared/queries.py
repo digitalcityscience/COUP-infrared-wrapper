@@ -159,24 +159,6 @@ def run_wind_simulation_query(snapshot_uuid, wind_direction, wind_speed):
     })
 
 
-def run_solar_rad_service_query(snapshot_uuid):
-    template = Template("""
-        mutation {
-          runServiceSolarRadiation (
-            snapshotUuid: "$snapshot_uuid"
-            analysisName: "Solar Radiation 1"
-          ) {
-            success
-            uuid
-          }
-        }
-        """)
-
-    return template.safe_substitute({
-        "snapshot_uuid": snapshot_uuid,
-    })
-
-
 def run_sunlight_hours_service_query(snapshot_uuid):
     template = Template("""
         mutation {
@@ -231,21 +213,6 @@ def get_projects_query(user_uuid):
             """)
 
     return template.safe_substitute({"user_uuid": user_uuid})
-
-
-def delete_project_query(user_uuid, project_uuid):
-    template = Template("""
-                mutation {
-                  deleteProject (
-                    uuid: "$project_uuid"
-                    userUuid: "$user_uuid"
-                  ) {
-                    success
-                  }
-                }
-            """)
-
-    return template.safe_substitute({"project_uuid": project_uuid, "user_uuid": user_uuid})
 
 
 def get_snapshot_query(project_uuid):
@@ -347,3 +314,35 @@ def delete_streets(snapshot_uuid: str, street_uuids: List[str]):
                 }
             """
                     ).safe_substitute({"all_streets_queries": all_streets_queries})
+
+
+# def run_solar_rad_service_query(snapshot_uuid):
+#     template = Template("""
+#         mutation {
+#           runServiceSolarRadiation (
+#             snapshotUuid: "$snapshot_uuid"
+#             analysisName: "Solar Radiation 1"
+#           ) {
+#             success
+#             uuid
+#           }
+#         }
+#         """)
+#
+#     return template.safe_substitute({
+#         "snapshot_uuid": snapshot_uuid,
+#     })
+
+# def delete_project_query(user_uuid, project_uuid):
+#     template = Template("""
+#                 mutation {
+#                   deleteProject (
+#                     uuid: "$project_uuid"
+#                     userUuid: "$user_uuid"
+#                   ) {
+#                     success
+#                   }
+#                 }
+#             """)
+#
+#     return template.safe_substitute({"project_uuid": project_uuid, "user_uuid": user_uuid})

@@ -1,15 +1,8 @@
-from typing import TypedDict, List
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
+from typing import Literal
 
-@dataclass_json
-@dataclass
-class InfraredProjectModel:
-    snapshot_uuid: str
-    project_uuid: str
-    # needed for both? creation might just need the wgs one.
-    bbox_utm_wkt: str
-
+SimType = Literal["wind", "sun"]
 
 @dataclass_json
 @dataclass

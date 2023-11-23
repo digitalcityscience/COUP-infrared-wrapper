@@ -1,12 +1,6 @@
-from enum import Enum
 from typing import Any, Optional
 
 import pydantic
-
-
-class StrEnum(str, Enum):
-    def _generate_next_value_(name, *_):
-        return name
 
 
 class BaseModelStrict(pydantic.BaseModel):

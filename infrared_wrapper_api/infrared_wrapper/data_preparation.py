@@ -1,16 +1,17 @@
 import math
-from typing import List, Literal
+from typing import List
 import json
 
 import geopandas as gpd
 from shapely.geometry import box
 from infrared_wrapper_api.config import settings
+from infrared_wrapper_api.infrared_wrapper.infrared.models import SimType
 from infrared_wrapper_api.models.calculation_input import WindSimulationTask, SunSimulationTask
 
 
 def create_simulation_tasks(
         task_def: dict,
-        sim_type: Literal["wind", "sun"]
+        sim_type: SimType
 ) -> List[WindSimulationTask | SunSimulationTask]:
     buildings_gdf = gpd.GeoDataFrame.from_features(task_def["buildings"]["features"], crs="EPSG:25832")
 
@@ -24,7 +25,7 @@ def create_simulation_task(
         task_def: dict,
         buildings_gdf: gpd.GeoDataFrame,
         bbox: box,
-        sim_type: Literal["wind", "sun"]
+        sim_type: SimType
 ) -> WindSimulationTask | SunSimulationTask:
 
     if sim_type == "wind":
@@ -48,7 +49,7 @@ def create_bbox_matrix(buildings: gpd.GeoDataFrame) -> List[gpd.GeoDataFrame]:
     """
     total_area = buildings.unary_union.convex_hull
     min_x, min_y, max_x, max_y = total_area.bounds
-    size = settings.infrared_calculation.true_simulation_area_size
+    size = settings.infrared_calculation.cropped_simulation_area_size
     buffer = settings.infrared_calculation.simulation_area_buffer
 
     bbox_matrix = []
@@ -66,7 +67,7 @@ def create_bbox_matrix(buildings: gpd.GeoDataFrame) -> List[gpd.GeoDataFrame]:
 
             # min_x, min_y, max_x, max_y
             bbox = box(box_min_x, box_min_y, box_max_x, box_max_y)
-            _bbox_without_buffer = box(box_min_x + buffer, box_min_y + buffer, box_max_x-buffer, box_max_y-buffer)
+            _bbox_without_buffer = box(box_min_x + buffer, box_min_y + buffer, box_max_x - buffer, box_max_y - buffer)
             if total_area.intersection(_bbox_without_buffer):
                 # only add bbox to matrix, if actually intersecting with the project area polygon
                 bbox_matrix.append(gpd.GeoDataFrame(geometry=[bbox], crs="EPSG:25832"))

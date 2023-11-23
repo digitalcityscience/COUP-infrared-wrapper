@@ -3,6 +3,7 @@ from pathlib import Path
 
 from pydantic import Field
 
+from infrared_wrapper_api.infrared_wrapper.infrared.models import SimType
 from infrared_wrapper_api.models.base import BaseModelStrict
 from infrared_wrapper_api.utils import hash_dict, load_json_file
 
@@ -10,9 +11,9 @@ JSONS_DIR = Path(__file__).parent / "jsons"
 BUILDINGS = JSONS_DIR / "buildings.json"
 
 
+
 class SimulationScenario(BaseModelStrict):
     buildings: dict
-
 
 class WindSimulationInput(SimulationScenario):
     wind_speed: int = Field(..., ge=0, le=80, description="Maximum speed in km/h (0-80)")
@@ -21,7 +22,7 @@ class WindSimulationInput(SimulationScenario):
     class Config:
         schema_extra = {
             "example": {
-                "wind_speed": 42,
+                "wind_speed": 40,
                 "wind_direction": 40,
                 "buildings": load_json_file(str(BUILDINGS.absolute())),
             }
@@ -65,7 +66,7 @@ class InfraredSimulationTask(BaseModelStrict):
 class WindSimulationTask(InfraredSimulationTask, WindSimulationInput):
 
     @property
-    def sim_type(self) -> str:
+    def sim_type(self) -> SimType:
         return "wind"
 
     @property
@@ -89,7 +90,7 @@ class WindSimulationTask(InfraredSimulationTask, WindSimulationInput):
 class SunSimulationTask(InfraredSimulationTask, SunSimulationInput):
 
     @property
-    def sim_type(self) -> str:
+    def sim_type(self) -> SimType:
         return "sun"
 
     @property

@@ -49,6 +49,7 @@ def delete_buildings_and_streets_for_these_projects(project_uuids: List[str]):
 # TO BE RUN AS CHRON
 if __name__ == "__main__":
     all_project_uuids = get_all_cut_prototype_projects_uuids()
+    print(all_project_uuids)
 
     # preemptively delete all buildings and streets (in case they are mistakenly left from other processes)
     delete_buildings_and_streets_for_these_projects(all_project_uuids)

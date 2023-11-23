@@ -1,12 +1,12 @@
 from celery import signals, group, chain
 from celery.utils.log import get_task_logger
 from fastapi.encoders import jsonable_encoder
-from typing import Literal
 
 from infrared_wrapper_api.dependencies import cache, celery_app
 from infrared_wrapper_api.infrared_wrapper.data_preparation import create_simulation_tasks
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_all_cut_prototype_projects_uuids
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject
+from infrared_wrapper_api.infrared_wrapper.infrared.models import SimType
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import reproject_geojson
 from infrared_wrapper_api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis
 from infrared_wrapper_api.infrared_wrapper.infrared.simulation import do_simulation
@@ -50,7 +50,7 @@ def task__cache_and_return_result(geojson_result: dict, celery_key: str) -> dict
 
 
 @celery_app.task()
-def task__compute(simulation_input: dict, sim_type: Literal["wind", "sun"]) -> dict:
+def task__compute(simulation_input: dict, sim_type: SimType) -> dict:
 
     # reproject buildings to metric system for internal use
     simulation_input["buildings"] = reproject_geojson(
@@ -87,15 +87,15 @@ def task__compute(simulation_input: dict, sim_type: Literal["wind", "sun"]) -> d
 
 
 @signals.task_postrun.connect
-def task_postrun_handler(task_id, task, *args, **kwargs):
+def task_postrun_handler(_task_id, task, *args, **kwargs):
     state = kwargs.get("state")
-    kwargs = kwargs.get("kwargs")
-
     # if state failure always set project_uuid busy:false
 
     if "task_do_wind_simulation" in str(task):
+        kwargs = kwargs.get("kwargs")
+
         if state == "SUCCESS":
-            logger.info(f"simulation successfully run!")
+            logger.info("simulation successfully run!")
         else:
             logger.error(f"Simulation of task {kwargs} failed with state {state}")
 
