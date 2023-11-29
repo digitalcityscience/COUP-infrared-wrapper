@@ -5,16 +5,12 @@ from fastapi import APIRouter
 from fastapi.encoders import jsonable_encoder
 
 from infrared_wrapper_api import tasks
-from infrared_wrapper_api.dependencies import cache, celery_app
-from infrared_wrapper_api.models.calculation_input import WindSimulationInput, WindSimulationTask, SunSimulationInput, \
-    SunSimulationTask
+from infrared_wrapper_api.dependencies import celery_app
+from infrared_wrapper_api.models.calculation_input import WindSimulationInput, SunSimulationInput
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["tasks"])
-
-
-# TODO use OGC naming already!
 
 
 @router.post("/task/wind")
@@ -22,7 +18,7 @@ async def process_task_wind(
     calculation_input: WindSimulationInput,
 ):
     calculation_task = WindSimulationInput(**calculation_input.dict())
-    result = tasks.task__compute.delay(jsonable_encoder(calculation_task))
+    result = tasks.task__compute.delay(simulation_input=jsonable_encoder(calculation_task), sim_type="wind")
 
     return {"taskId": result.get()}\
 
@@ -32,8 +28,8 @@ async def process_task_wind(
 async def process_task_sun(
     calculation_input: SunSimulationInput,
 ):
-    calculation_task = SunSimulationTask(**calculation_input.dict())
-    result = tasks.task__compute.delay(jsonable_encoder(calculation_task))
+    calculation_task = SunSimulationInput(**calculation_input.dict())
+    result = tasks.task__compute.delay(jsonable_encoder(calculation_task), "sun")
 
     return {"taskId": result.get()}
 

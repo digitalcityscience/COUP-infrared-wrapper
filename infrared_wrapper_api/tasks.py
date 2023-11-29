@@ -14,43 +14,14 @@ from infrared_wrapper_api.infrared_wrapper.infrared.simulation import do_simulat
 logger = get_task_logger(__name__)
 
 
-# trigger calculation for an infrared project
-@celery_app.task()
-def task__do_simulation(project_uuid: str, sim_task: dict) -> dict:
-
-    # check if result for this task is already cached. Return from cache.
-    if result := cache.get(key=sim_task["celery_key"]):
-        logger.info(
-            f"Result fetched from cache with key: {sim_task['celery_key']}"
-        )
-        return result
-
-    logger.info(
-        f"Starting calculation ...  Result with key: {sim_task['celery_key']} not found in cache."
-    )
-
-    return do_simulation(
-        project_uuid=project_uuid,
-        sim_task=sim_task
-    )
-
-
-
-@celery_app.task()
-def task__cache_and_return_result(geojson_result: dict, celery_key: str) -> dict:
-    # cache result if sucessful
-    if geojson_result.get("features", []) == 0:
-        logger.error("GOT EMPTY RESULT")
-        return {}
-
-    cache.put(key=celery_key, value=geojson_result)
-    logger.info(f"Saved result with key {celery_key} to cache.")
-
-    return geojson_result
-
-
 @celery_app.task()
 def task__compute(simulation_input: dict, sim_type: SimType) -> dict:
+    """
+    This task is triggered by the endpoint.
+    It will create a split the simulation into several simulations of 500*500meters areas.
+    It will create a list of simulation_tasks with a simulation task for each area.
+    It will create a group task for all simulation_tasks
+    """
 
     # reproject buildings to metric system for internal use
     simulation_input["buildings"] = reproject_geojson(
@@ -84,6 +55,42 @@ def task__compute(simulation_input: dict, sim_type: SimType) -> dict:
 
     return group_result.id
 
+
+# trigger calculation for an infrared project
+@celery_app.task()
+def task__do_simulation(project_uuid: str, sim_task: dict) -> dict:
+    """
+    Doing a simulation for a 500*500meters simulation area.
+    """
+
+    # check if result for this task is already cached. Return from cache.
+    if result := cache.get(key=sim_task["celery_key"]):
+        logger.info(
+            f"Result fetched from cache with key: {sim_task['celery_key']}"
+        )
+        return result
+
+    logger.info(
+        f"Starting calculation ...  Result with key: {sim_task['celery_key']} not found in cache."
+    )
+
+    return do_simulation(
+        project_uuid=project_uuid,
+        sim_task=sim_task
+    )
+
+
+@celery_app.task()
+def task__cache_and_return_result(geojson_result: dict, celery_key: str) -> dict:
+    # cache result if sucessful
+    if geojson_result.get("features", []) == 0:
+        logger.error("GOT EMPTY RESULT")
+        return {}
+
+    cache.put(key=celery_key, value=geojson_result)
+    logger.info(f"Saved result with key {celery_key} to cache.")
+
+    return geojson_result
 
 
 @signals.task_postrun.connect

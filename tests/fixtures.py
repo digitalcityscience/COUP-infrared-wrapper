@@ -30,6 +30,13 @@ def sample_simulation_result():
 #         geojson = json.load(f)
 #         return reproject_geojson(geojson, "EPSG:4326", "EPSG:25832")
 
+@pytest.fixture
+def sample_building_data():
+    print(os.getcwd())
+    with open("../infrared_wrapper_api/models/jsons/buildings.json", "r") as f:
+        geojson = json.load(f)
+        return reproject_geojson(geojson, "EPSG:4326", "EPSG:25832")
+
 
 @pytest.fixture
 def sample_simulation_input(sample_building_data):
@@ -39,11 +46,4 @@ def sample_simulation_input(sample_building_data):
         "wind_direction": 45,
     }
 
-
-@pytest.fixture
-def sample_building_data():
-    print(os.getcwd())
-    with open("../infrared_wrapper_api/models/jsons/buildings.json", "r") as f:
-        geojson = json.load(f)
-        return reproject_geojson(geojson, "EPSG:4326", "EPSG:25832")
 

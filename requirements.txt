@@ -10,3 +10,4 @@ requests
 dataclasses-json
 tenacity==8.2.3
 pytz==2023.3.post1
+httpx==0.25.2
