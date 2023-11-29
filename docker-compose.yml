@@ -4,13 +4,17 @@ services:
     build: .
     env_file: .env
     ports:
-      - '8003:80'
+      - '8004:80'
     command: uvicorn infrared_wrapper_api.api.main:app --host 0.0.0.0 --port 80 --reload
     networks:
       &network_mode
       - bridgenet
     volumes:
       - ./:/app
+    depends_on:
+      - celery-worker-wind-api-v2
+      - redis-wind-api-v2
+
   
   redis-wind-api-v2:
     container_name: redis-wind-api-v2
@@ -33,10 +37,7 @@ services:
       - .env
     volumes:
       - ./:/app
-    depends_on:
-      - wind-api-v2
-      - redis-wind-api-v2
-  
+
   flower-wind-api-v2:
     container_name: flower-wind-api-v2
     build: .

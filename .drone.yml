@@ -1,0 +1,59 @@
+---
+kind: pipeline
+name: pipeline
+type: docker
+
+steps:
+- name: build and publish
+  image: plugins/docker
+  settings:
+    repo:
+      from_secret: docker_repository
+    tags:
+      - ${DRONE_BRANCH}
+    dockerfile: Dockerfile
+    custom_dns: ['192.168.8.5', '192.168.8.6']
+    registry:
+      from_secret: docker_registry
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+  when:
+    status: [ success ]
+    branch: [ main ]
+
+- name: build and publish release
+  image: plugins/docker
+  custom_dns: ['192.168.8.5', '192.168.8.6']
+  settings:
+    repo:
+      from_secret: docker_repository
+    tags: ${DRONE_TAG}
+    registry:
+      from_secret: docker_registry
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+  when:
+    status: [ success ]
+    event:
+      - tag
+
+- name: rollout
+  image: quving/drone-rancher-cicd:v1.1.0
+  settings:
+    stamp: ${DRONE_COMMIT}
+    kubectl_options: '--insecure-skip-tls-verify'
+    kubernetes_deployment: 'wind-api-v2,wind-worker-v2'
+    kubernetes_namespace: 'cut-prototyp-develop'
+    rancher_url:
+      from_secret: rancher_url
+    rancher_token:
+      from_secret: rancher_token
+    rancher_context:
+      from_secret: rancher_context
+  when:
+    status: [ success ]
+    branch: [ main ]
