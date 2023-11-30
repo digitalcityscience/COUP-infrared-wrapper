@@ -14,14 +14,14 @@ from infrared_wrapper_api.infrared_wrapper.infrared.simulation import do_simulat
 logger = get_task_logger(__name__)
 
 
+"""
+This task is triggered by the endpoint.
+It will create a split the simulation into several simulations of 500*500meters areas.
+It will create a list of simulation_tasks with a simulation task for each area.
+It will create a group task for all simulation_tasks
+"""
 @celery_app.task()
 def task__compute(simulation_input: dict, sim_type: SimType) -> dict:
-    """
-    This task is triggered by the endpoint.
-    It will create a split the simulation into several simulations of 500*500meters areas.
-    It will create a list of simulation_tasks with a simulation task for each area.
-    It will create a group task for all simulation_tasks
-    """
 
     # reproject buildings to metric system for internal use
     simulation_input["buildings"] = reproject_geojson(
@@ -38,13 +38,10 @@ def task__compute(simulation_input: dict, sim_type: SimType) -> dict:
     # trigger calculation and collect result for project in infrared_projects
     task_group = group(
         [
-            # create task chain for each bbox. tasks in chain will be executed sequentially
-            chain(
-                task__do_simulation.s(
-                    project_uuid=find_idle_infrared_project(all_project_uuids),
-                    sim_task=jsonable_encoder(simulation_task)
-                ),  # returns geojson result
-                task__cache_and_return_result.s(simulation_task.celery_key)  # has return val of previous func as 1st arg
+            # create task for each bbox.
+            task__do_simulation.s(
+                project_uuid=find_idle_infrared_project(all_project_uuids),
+                sim_task=jsonable_encoder(simulation_task)
             )
             for simulation_task in simulation_tasks
         ]
@@ -62,62 +59,42 @@ def task__do_simulation(project_uuid: str, sim_task: dict) -> dict:
     """
     Doing a simulation for a 500*500meters simulation area.
     """
-
+    result = {}
     try:
         # check if result for this task is already cached. Return from cache.
         if result := cache.get(key=sim_task["celery_key"]):
             logger.info(
                 f"Result fetched from cache with key: {sim_task['celery_key']}"
             )
-            return result
-
-        logger.info(
-            f"Starting calculation ...  Result with key: {sim_task['celery_key']} not found in cache."
-        )
-
-        return do_simulation(
-            project_uuid=project_uuid,
-            sim_task=sim_task
-        )
-
+        else:
+            logger.info(
+                f"Starting calculation ...  Result with key: {sim_task['celery_key']} not found in cache."
+            )
+            result = do_simulation(
+                project_uuid=project_uuid,
+                sim_task=sim_task
+            )
     except Exception as e:
-        reset_infrared_project(project_uuid)
-        print(f"simulation for  sim_task {sim_task} failed with exception {e}")
+        logger.error(
+            f"simulation for  sim_task {sim_task} failed with exception {e}"
+        )
+    else:
+        # cache valid results
+        if result and result.get("features", []):
+            cache.put(key=sim_task.get("celery_key"), value=result)
+            logger.info(f"Saved or renewed result with key {sim_task.get('celery_key')} to cache.")
+    finally:
+        # trigger project cleanup
+        task__cleanup_project.delay(project_uuid=project_uuid)
+
+        # return result without waiting for cleanup
+        return result
 
 
 @celery_app.task()
-def task__cache_and_return_result(geojson_result: dict, celery_key: str) -> dict:
-    # cache result if sucessful
-    if geojson_result.get("features", []) == 0:
-        logger.error("GOT EMPTY RESULT")
-        return {}
-
-    cache.put(key=celery_key, value=geojson_result)
-    logger.info(f"Saved result with key {celery_key} to cache.")
-
-    return geojson_result
-
-
-@signals.task_postrun.connect
-def task_postrun_handler(_task_id, task, *args, **kwargs):
-    state = kwargs.get("state")
-    # if state failure always set project_uuid busy:false
-
-    if "task_do_wind_simulation" in str(task):
-        kwargs = kwargs.get("kwargs")
-
-        if state == "SUCCESS":
-            logger.info("simulation successfully run!")
-        else:
-            logger.error(f"Simulation of task {kwargs} failed with state {state}")
-
-        project_uuid = kwargs.get("project_uuid")
-
-        # delete buildings again
-        reset_infrared_project(project_uuid)
-
-
-def reset_infrared_project(project_uuid: str):
+def task__cleanup_project(project_uuid: str):
+    logger.info(f"Finally: deleting all buildings for project {project_uuid}")
+    # clean up project
     infrared_project = InfraredProject(project_uuid)
     infrared_project.delete_all_buildings()
 
