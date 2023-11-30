@@ -1,8 +1,5 @@
-import time
-import json
-
-from shapely.geometry import Polygon
 import geopandas
+import json
 
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_root_snapshot_id, \
     get_all_building_uuids_for_project, delete_buildings, delete_streets, create_new_buildings, \
