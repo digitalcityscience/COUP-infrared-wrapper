@@ -26,12 +26,12 @@ def load_json_file(path: str) -> dict:
 
 def log_request(sim_type: SimType):
     
-    if current_count := cache.get(f"sim_requests_{sim_type}") is None:
+    if current_count := cache.get(key=f"sim_requests_{sim_type}") is None:
         current_count = 0
 
     cache.put(
-        f"sim_requests_{sim_type}",
-        current_count + 1
+        key=f"sim_requests_{sim_type}",
+        value=current_count + 1
     )
 
 
