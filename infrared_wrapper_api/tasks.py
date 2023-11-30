@@ -63,21 +63,26 @@ def task__do_simulation(project_uuid: str, sim_task: dict) -> dict:
     Doing a simulation for a 500*500meters simulation area.
     """
 
-    # check if result for this task is already cached. Return from cache.
-    if result := cache.get(key=sim_task["celery_key"]):
+    try:
+        # check if result for this task is already cached. Return from cache.
+        if result := cache.get(key=sim_task["celery_key"]):
+            logger.info(
+                f"Result fetched from cache with key: {sim_task['celery_key']}"
+            )
+            return result
+
         logger.info(
-            f"Result fetched from cache with key: {sim_task['celery_key']}"
+            f"Starting calculation ...  Result with key: {sim_task['celery_key']} not found in cache."
         )
-        return result
 
-    logger.info(
-        f"Starting calculation ...  Result with key: {sim_task['celery_key']} not found in cache."
-    )
+        return do_simulation(
+            project_uuid=project_uuid,
+            sim_task=sim_task
+        )
 
-    return do_simulation(
-        project_uuid=project_uuid,
-        sim_task=sim_task
-    )
+    except Exception as e:
+        reset_infrared_project(project_uuid)
+        print(f"simulation for  sim_task {sim_task} failed with exception {e}")
 
 
 @celery_app.task()
@@ -109,9 +114,13 @@ def task_postrun_handler(_task_id, task, *args, **kwargs):
         project_uuid = kwargs.get("project_uuid")
 
         # delete buildings again
-        infrared_project = InfraredProject(project_uuid)
-        infrared_project.delete_all_buildings()
+        reset_infrared_project(project_uuid)
 
-        # set project to be not busy again.
-        update_infrared_project_status_in_redis(project_uuid=project_uuid, is_busy=False)
-        logger.info(f"Set project to 'is_busy=False' for project: {project_uuid}")
+
+def reset_infrared_project(project_uuid: str):
+    infrared_project = InfraredProject(project_uuid)
+    infrared_project.delete_all_buildings()
+
+    # set project to be not busy again.
+    update_infrared_project_status_in_redis(project_uuid=project_uuid, is_busy=False)
+    logger.info(f"Set project to 'is_busy=False' for project: {project_uuid}")
