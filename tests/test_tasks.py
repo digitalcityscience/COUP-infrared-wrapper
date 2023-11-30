@@ -61,7 +61,8 @@ def test_task_not_cached(sample_simulation_area, sample_building_data):
 
 def test_task_is_cached(sample_simulation_area, sample_building_data):
     # Mock functions that require a redis instance to run.
-    with patch("infrared_wrapper_api.tasks.cache.get", return_value={"result": "placeholder"}) as mock_cache_get, \
+    mock_result = {"result": "placeholder"}
+    with patch("infrared_wrapper_api.tasks.cache.get", return_value=mock_result) as mock_cache_get, \
             patch("infrared_wrapper_api.infrared_wrapper.infrared.simulation.do_simulation") as mock_do_sim:
         # call function
         mock_project_uuid = "abc123"
@@ -71,9 +72,12 @@ def test_task_is_cached(sample_simulation_area, sample_building_data):
             wind_speed=15,
             wind_direction=15
         )
-        task__do_simulation(mock_project_uuid, sample_wind_sim_task.dict())
+        result = task__do_simulation(mock_project_uuid, sample_wind_sim_task.dict())
 
         # Assert checking in cache
         mock_cache_get.assert_called()
         # Assert wind simulation is NOT called, as we found result of task in cache
         mock_do_sim.assert_not_called()
+
+        # Asser returned result is the mock result
+        assert result == mock_result
