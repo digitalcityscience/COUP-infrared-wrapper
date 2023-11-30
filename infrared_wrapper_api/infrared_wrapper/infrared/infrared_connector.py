@@ -56,8 +56,9 @@ class InfraredConnector:
         request = requests.post(url, json={'query': query}, headers=headers)
 
         if request.status_code == 401:
+            # cookies expire after 1hour - reauthenticate and try again
             self.infrared_user_login()
-            self.execute_query(query)
+            return self.execute_query(query)
 
         if request.status_code != 200:
             raise InfraredException(
