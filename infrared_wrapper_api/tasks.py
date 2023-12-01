@@ -8,7 +8,7 @@ from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import ge
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject
 from infrared_wrapper_api.infrared_wrapper.infrared.models import SimType
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import reproject_geojson
-from infrared_wrapper_api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis
+from infrared_wrapper_api.api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis
 from infrared_wrapper_api.infrared_wrapper.infrared.simulation import do_simulation
 
 logger = get_task_logger(__name__)

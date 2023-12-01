@@ -1,10 +1,11 @@
 import logging
 
 from celery.result import AsyncResult, GroupResult
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.encoders import jsonable_encoder
 
 from infrared_wrapper_api import tasks
+from infrared_wrapper_api.api.utils import unify_group_result
 from infrared_wrapper_api.dependencies import celery_app
 from infrared_wrapper_api.models.calculation_input import WindSimulationInput, SunSimulationInput
 
@@ -51,24 +52,16 @@ async def get_task(task_id: str):
     return response
 
 
-@router.get("/grouptasks/{group_task_id}")
-def get_grouptask(group_task_id: str):
-    # TODO handle invalid ids
-
+@router.get("/jobs/{group_task_id}/results")
+def get_grouptask_results(group_task_id: str):
     group_result = GroupResult.restore(group_task_id, app=celery_app)
 
+    if not group_result:
+        raise HTTPException(status_code=404, detail=f"Result not found! Invalid grouptask id provided {group_task_id}")
+    if not group_result.ready():
+        raise HTTPException(status_code=404, detail="Result not ready yet")
 
-
-    # Fields available
-    # https://docs.celeryproject.org/en/stable/reference/celery.result.html#celery.result.ResultSet
-    return {
-        "grouptaskId": group_result.id,
-        "tasksCompleted": group_result.completed_count(),
-        "tasksTotal": len(group_result.results),
-        "grouptaskProcessed": group_result.ready(),
-        "grouptaskSucceeded": group_result.successful(),
-        "results": [result.get() for result in group_result.results if result.ready()],
-    }
+    return unify_group_result(group_result)
 
 
 @router.get("/tasks/{task_id}/status")

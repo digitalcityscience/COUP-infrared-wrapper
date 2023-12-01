@@ -57,6 +57,7 @@ class InfraredConnector:
 
         if request.status_code == 401:
             # cookies expire after 1hour - reauthenticate and try again
+            print("COOKIE EXPIRED - LOGGING IN AGAIN")
             self.infrared_user_login()
             return self.execute_query(query)
 

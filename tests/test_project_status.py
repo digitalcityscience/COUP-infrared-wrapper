@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_all_cut_prototype_projects_uuids
-from infrared_wrapper_api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis
+from infrared_wrapper_api.api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis
 from tests.utils import get_idle_project_id
 
 
@@ -17,7 +17,7 @@ def test_getting_idle_project():
     """
 
     # Mock functions that require a redis instance to run.
-    with patch("infrared_wrapper_api.utils.update_infrared_project_status_in_redis") as mock_update_status, \
+    with patch("infrared_wrapper_api.api.utils.update_infrared_project_status_in_redis") as mock_update_status, \
             patch("infrared_wrapper_api.dependencies.cache.put") as mock_cache_put, \
             patch("infrared_wrapper_api.dependencies.cache.get", return_value={"is_busy": False}) as mocK_cache_get:
         project_uuid = find_idle_infrared_project(get_all_cut_prototype_projects_uuids())
