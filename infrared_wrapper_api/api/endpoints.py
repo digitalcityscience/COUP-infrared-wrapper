@@ -14,20 +14,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["tasks"])
 
 
-@router.post("/task/wind")
-async def process_task_wind(
-    calculation_input: WindSimulationInput,
+@router.post("/processes/wind/execution")
+async def execute_wind(
+        calculation_input: WindSimulationInput,
 ):
     calculation_task = WindSimulationInput(**calculation_input.dict())
     result = tasks.task__compute.delay(simulation_input=jsonable_encoder(calculation_task), sim_type="wind")
 
-    return {"taskId": result.get()}\
+    return {"taskId": result.get()}
 
 
-
-@router.post("/task/sun")
-async def process_task_sun(
-    calculation_input: SunSimulationInput,
+@router.post("/processes/sun/execution")
+async def execute_sun(
+        calculation_input: SunSimulationInput,
 ):
     calculation_task = SunSimulationInput(**calculation_input.dict())
     result = tasks.task__compute.delay(jsonable_encoder(calculation_task), "sun")
@@ -35,40 +34,47 @@ async def process_task_sun(
     return {"taskId": result.get()}
 
 
-@router.get("/tasks/{task_id}")
-async def get_task(task_id: str):
-    async_result = AsyncResult(task_id, app=celery_app)
-
-    response = {
-        "taskId": async_result.id,
-        "taskState": async_result.state,
-        "taskSucceeded": async_result.successful(),
-        "resultReady": async_result.ready(),
-    }
-
-    if async_result.ready():
-        response["result"] = async_result.get()
-
-    return response
-
-
-@router.get("/jobs/{group_task_id}/results")
-def get_grouptask_results(group_task_id: str):
-    group_result = GroupResult.restore(group_task_id, app=celery_app)
+@router.get("/jobs/{job_id}/results")
+def get_job_results(job_id: str):
+    group_result = GroupResult.restore(job_id, app=celery_app)
 
     if not group_result:
-        raise HTTPException(status_code=404, detail=f"Result not found! Invalid grouptask id provided {group_task_id}")
-    if not group_result.ready():
+        raise HTTPException(status_code=404, detail=f"Result not found! Invalid job-id provided {job_id}")
+    if not group_result.successful():
         raise HTTPException(status_code=404, detail="Result not ready yet")
 
     return unify_group_result(group_result)
 
 
-@router.get("/tasks/{task_id}/status")
-async def get_task_status(task_id: str):
-    async_result = AsyncResult(task_id, app=celery_app)
-    state = async_result.state
-    if state == "FAILURE":
-        state = f"FAILURE : {str(async_result.get())}"
+@router.get("/jobs/{job_id}")
+async def get_job_status(job_id: str):
+    group_result = GroupResult.restore(job_id, app=celery_app)
 
-    return {"status": state}
+    if not group_result:
+        raise HTTPException(status_code=404, detail=f"Job not found! Invalid job-id provided {job_id}")
+
+    # successful() returns true if all tasks successful.
+    if group_result.successful():
+        return {
+            "status": "SUCCESS",
+            "progress": 100
+        }
+
+    # Note that `complete` means `successful` in this context
+    progress = group_result.completed_count() / len(group_result.results)
+
+    # one of the jobs failed
+    if group_result.failed():
+        return {
+            "status": "FAILURE",
+            "progress": progress
+        }
+
+    if group_result.waiting():
+        return {
+            "status": "PENDING",
+            "progress": progress
+        }
+
+    raise HTTPException(status_code=500, detail=f"Could not get status for job-id {job_id}")
+
