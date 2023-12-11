@@ -40,10 +40,12 @@ def get_job_results(job_id: str):
 
     if not group_result:
         raise HTTPException(status_code=404, detail=f"Result not found! Invalid job-id provided {job_id}")
+    if group_result.failed():
+        raise HTTPException(status_code=404, detail=f"No result because job {job_id} FAILED")
     if not group_result.successful():
         raise HTTPException(status_code=404, detail="Result not ready yet")
 
-    return unify_group_result(group_result)
+    return {"result": unify_group_result(group_result)}
 
 
 @router.get("/jobs/{job_id}")
