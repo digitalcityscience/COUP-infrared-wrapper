@@ -5,6 +5,7 @@ from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import ge
     create_new_project, get_project_name, get_all_cut_prototype_projects_uuids
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject
 from infrared_wrapper_api.utils import is_cut_prototype_project
+from infrared_wrapper_api.api.utils import update_infrared_project_status_in_redis
 from infrared_wrapper_api.config import settings
 
 
@@ -53,6 +54,10 @@ if __name__ == "__main__":
 
     # preemptively delete all buildings and streets (in case they are mistakenly left from other processes)
     delete_buildings_and_streets_for_these_projects(all_project_uuids)
+
+    # set all projects as not busy
+    for project_uuid in all_project_uuids:
+        update_infrared_project_status_in_redis(project_uuid=project_uuid, is_busy=False)
 
     # check how many empty projects we have
     count_empty = get_count_empty_projects(all_project_uuids)
