@@ -14,24 +14,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["tasks"])
 
 
-@router.post("/processes/wind/execution")
+@router.post("/processes/wind-comfort/execution")
 async def execute_wind(
         calculation_input: WindSimulationInput,
 ):
     calculation_task = WindSimulationInput(**calculation_input.dict())
     result = tasks.task__compute.delay(simulation_input=jsonable_encoder(calculation_task), sim_type="wind")
 
-    return {"taskId": result.get()}
+    return {"job_id": result.get()}
 
 
-@router.post("/processes/sun/execution")
+@router.post("/processes/sunlight-hours/execution")
 async def execute_sun(
         calculation_input: SunSimulationInput,
 ):
     calculation_task = SunSimulationInput(**calculation_input.dict())
     result = tasks.task__compute.delay(jsonable_encoder(calculation_task), "sun")
 
-    return {"taskId": result.get()}
+    return {"job_id": result.get()}
 
 
 @router.get("/jobs/{job_id}/results")
@@ -45,7 +45,7 @@ def get_job_results(job_id: str):
     if not group_result.successful():
         raise HTTPException(status_code=404, detail="Result not ready yet")
 
-    return {"result": unify_group_result(group_result)}
+    return {"result": {"geojson": unify_group_result(group_result)}}
 
 
 @router.get("/jobs/{job_id}")
