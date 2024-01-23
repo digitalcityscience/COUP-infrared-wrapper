@@ -16,13 +16,13 @@ class SimulationScenario(BaseModelStrict):
     buildings: dict
 
 class WindSimulationInput(SimulationScenario):
-    wind_speed: int = Field(..., ge=0, le=80, description="Maximum speed in km/h (0-80)")
+    wind_speed: int = Field(..., ge=0, le=30, description="Maximum speed in m/s (0-30)")
     wind_direction: int = Field(..., ge=0, le=360, description="Wind direction in °")
 
     class Config:
         schema_extra = {
             "example": {
-                "wind_speed": 40,
+                "wind_speed": 10,
                 "wind_direction": 40,
                 "buildings": load_json_file(str(BUILDINGS.absolute())),
             }
