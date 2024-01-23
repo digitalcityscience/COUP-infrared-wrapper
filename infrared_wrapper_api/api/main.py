@@ -32,7 +32,7 @@ async def health_check():
     return "ok"
 
 
-app.include_router(tasks_router)
+app.include_router(tasks_router, prefix="/infrared")
 
 
 if __name__ == "__main__":
