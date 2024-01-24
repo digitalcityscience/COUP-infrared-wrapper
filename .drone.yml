@@ -46,7 +46,7 @@ steps:
   settings:
     stamp: ${DRONE_COMMIT}
     kubectl_options: '--insecure-skip-tls-verify'
-    kubernetes_deployment: 'wind-api-v2,wind-worker-v2'
+    kubernetes_deployment: 'infrared-wrapper-api-v2,infrared-wrapper-worker-v2'
     kubernetes_namespace: 'cut-prototyp-develop'
     rancher_url:
       from_secret: rancher_url
