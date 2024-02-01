@@ -214,7 +214,7 @@ def delete_buildings(snapshot_uuid: str, building_uuids: List[str]):
     all_success = all(entry.get("success", False) for entry in response["data"].values())
 
     if not all_success:
-        print(f"COULD NOT DELETE ALL BUILDINGS {response.json()}")
+        print(f"COULD NOT DELETE ALL BUILDINGS {response}")
 
 
 def delete_streets(snapshot_uuid: str, streets_uuids: List[str]):

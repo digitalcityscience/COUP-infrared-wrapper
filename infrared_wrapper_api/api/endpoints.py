@@ -1,6 +1,6 @@
 import logging
 
-from celery.result import AsyncResult, GroupResult
+from celery.result import GroupResult
 from fastapi import APIRouter, HTTPException
 from fastapi.encoders import jsonable_encoder
 
@@ -48,7 +48,7 @@ def get_job_results(job_id: str):
     return {"result": {"geojson": unify_group_result(group_result)}}
 
 
-@router.get("/jobs/{job_id}")
+@router.get("/jobs/{job_id}/status")
 async def get_job_status(job_id: str):
     group_result = GroupResult.restore(job_id, app=celery_app)
 
@@ -79,4 +79,3 @@ async def get_job_status(job_id: str):
         }
 
     raise HTTPException(status_code=500, detail=f"Could not get status for job-id {job_id}")
-
