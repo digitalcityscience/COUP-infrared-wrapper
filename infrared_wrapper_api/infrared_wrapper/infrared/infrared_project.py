@@ -1,6 +1,5 @@
 import geopandas
 import json
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_root_snapshot_id, \
     get_all_building_uuids_for_project, delete_buildings, delete_streets, create_new_buildings, \
@@ -40,11 +39,6 @@ class InfraredProject:
         )
 
     # deletes all buildings for project on endpoint
-    @retry(
-        stop=stop_after_attempt(5),  # Maximum number of attempts
-        wait=wait_exponential(multiplier=1, max=10),  # Exponential backoff with a maximum wait time of 10 seconds
-        retry=retry_if_exception_type(InfraredException)  # Retry only on APIError exceptions
-    )
     def delete_all_buildings(self):
         building_uuids = get_all_building_uuids_for_project(self.project_uuid, self.snapshot_uuid)
 

@@ -62,12 +62,16 @@ def create_new_empty_project():
 
 def cleanup_infrared_projects():
     all_project_uuids = get_all_cut_prototype_projects_uuids()
+    idle_project_ids = []
     for project_uuid in all_project_uuids:
         project_info = cache.get(key=project_uuid)
+        if project_info and project_info.get("status") == ProjectStatus.IDLE.value:
+            idle_project_ids.append(project_uuid)
         if project_info and project_info.get("status") == ProjectStatus.TO_BE_CLEANED.value:
             cleanup_project(project_uuid=project_uuid)
+            idle_project_ids.append(project_uuid)
 
-    return all_project_uuids
+    return idle_project_ids
 
 
 def setup_infrared() -> List[dict]:

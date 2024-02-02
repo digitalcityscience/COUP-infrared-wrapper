@@ -3,11 +3,11 @@ import geopandas as gpd
 from infrared_wrapper_api.config import settings
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_result import InfraredResult, crop_buffer, \
     georeference_infrared_result
-from tests.fixtures import sample_simulation_result, sample_simulation_area
+from tests.fixtures import sample_simulation_result_raw, sample_simulation_area
 
 
-def test_handling_result(sample_simulation_result):
-    infrared_result = InfraredResult.from_raw_result(sample_simulation_result)
+def test_handling_result(sample_simulation_result_raw):
+    infrared_result = InfraredResult.from_raw_result(sample_simulation_result_raw)
     geojson_result = infrared_result.result_to_geojson()
 
     assert len(geojson_result["features"]) > 0
@@ -30,10 +30,10 @@ def test_handling_result(sample_simulation_result):
         assert abs(val1 - val2) == settings.infrared_calculation.simulation_area_buffer
 
 
-def test_getting_final_georeferenced_result(sample_simulation_result, sample_simulation_area):
+def test_getting_final_georeferenced_result(sample_simulation_result_raw, sample_simulation_area):
     sim_area_gdf = gpd.GeoDataFrame.from_features(sample_simulation_area["features"], "EPSG:25832")
 
-    result = georeference_infrared_result(sample_simulation_result, sim_area_gdf.total_bounds)
+    result = georeference_infrared_result(sample_simulation_result_raw, sim_area_gdf.total_bounds)
     result_gdf = gpd.GeoDataFrame.from_features(result["features"])
 
     # check that the result really is within the simulation area.

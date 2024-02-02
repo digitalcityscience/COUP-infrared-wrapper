@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from infrared_wrapper_api.api.main import app
 from typing import List
-from tests.fixtures import sample_building_data, sample_simulation_input
+from tests.fixtures import sample_building_data_single_bbox, sample_simulation_input
 
 client = TestClient(app)
 

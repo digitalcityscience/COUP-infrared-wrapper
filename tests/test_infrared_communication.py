@@ -7,7 +7,7 @@ from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import Infr
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import reproject_geojson
 from infrared_wrapper_api.config import settings
 from tests.utils import get_idle_project_id
-from tests.fixtures import sample_building_data, sample_simulation_area
+from tests.fixtures import sample_building_data_single_bbox, sample_simulation_area
 
 """
 Tests communication with Infrared 
@@ -35,14 +35,14 @@ def test_use_infrared_project():
     assert project.snapshot_uuid is not None
 
 
-def test_update_and_delete_buildings_at_infrared(sample_building_data, sample_simulation_area):
+def test_update_and_delete_buildings_at_infrared(sample_building_data_single_bbox, sample_simulation_area):
     project_uuid = get_idle_project_id()
     project = InfraredProject(project_uuid)
-    project.update_buildings_at_infrared(sample_building_data, sample_simulation_area)
+    project.update_buildings_at_infrared(sample_building_data_single_bbox, sample_simulation_area)
 
     try:
         # Assertions
-        building_count = len(sample_building_data["features"])
+        building_count = len(sample_building_data_single_bbox["features"])
         assert len(get_all_building_uuids_for_project(project.project_uuid, project.snapshot_uuid)) == building_count
 
         # Run wind simulation

@@ -5,7 +5,7 @@ from fastapi_utils.tasks import repeat_every
 
 from infrared_wrapper_api.api.endpoints import router as tasks_router
 from infrared_wrapper_api.config import settings
-from infrared_wrapper_api.infrared_wrapper.infrared.setup.setup_infrared import setup_infrared
+from infrared_wrapper_api.infrared_wrapper.infrared.setup.setup_infrared import setup_infrared, cleanup_infrared_projects
 
 app = FastAPI(
     title=settings.title,
@@ -34,21 +34,17 @@ async def health_check():
 
 
 @app.on_event("startup")
-@app.get("/setup_infrared", tags=["ROOT"])
-def setup_infrared():
-    print("Cleaning up infrared projects...")
-    return setup_infrared()
-
-@app.on_event("startup")
 @repeat_every(seconds=60, wait_first=True)  # every minute
 @app.get("/cleanup_infrared", tags=["ROOT"])
 def clean_up_infrared():
     print("Cleaning up infrared projects...")
-    return clean_up_infrared()
+    return cleanup_infrared_projects()
 
 
 app.include_router(tasks_router, prefix="/infrared")
 
 
 if __name__ == "__main__":
+    print("Setting up infrared projects...")
+    setup_infrared()
     uvicorn.run(app, host="0.0.0.0", port=80)

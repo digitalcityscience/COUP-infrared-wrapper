@@ -13,7 +13,7 @@ from infrared_wrapper_api.utils import is_cut_prototype_project
 
 
 class InfraredException(Exception):
-    "Raised when no idle project found"
+    "Raised for errors in infrared communication"
     pass
 
 
@@ -140,6 +140,12 @@ def get_project_name(project_uuid) -> str:
     return get_value(snapshot, name_path)
 
 
+def delete_project(project_uuid):
+    query = queries.delete_project(project_uuid, connector.user_uuid)
+    connector.execute_query(query)
+
+    print(f"project deleted {project_uuid}")
+
 """
 BUILDINGS AND STREETS
 """
@@ -225,7 +231,7 @@ def delete_streets(snapshot_uuid: str, streets_uuids: List[str]):
     all_success = all(entry.get("success", False) for entry in response["data"].values())
 
     if not all_success:
-        print(f"COULD NOT DELETE ALL STREETS {response.json()}")
+        print(f"COULD NOT DELETE ALL STREETS {response}")
 
 
 """

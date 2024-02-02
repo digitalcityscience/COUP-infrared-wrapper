@@ -34,6 +34,7 @@ def create_simulation_task(
             buildings=json.loads(buildings_gdf.clip(bbox).to_json()),
             wind_speed=task_def["wind_speed"],
             wind_direction=task_def["wind_direction"],
+            # TODO add original calculation area here. and when task finished - clip to it.
         )
 
     if sim_type == "sun":
@@ -45,12 +46,21 @@ def create_simulation_task(
 
 def create_bbox_matrix(buildings: gpd.GeoDataFrame) -> List[gpd.GeoDataFrame]:
     """
-    creates a matrix of overlapping bboxes covering the project area polygon
+    creates a matrix of overlapping bboxes covering the area containing buildings (EPSG:25832)
     """
     total_area = buildings.unary_union.convex_hull
     min_x, min_y, max_x, max_y = total_area.bounds
     size = settings.infrared_calculation.cropped_simulation_area_size
     buffer = settings.infrared_calculation.simulation_area_buffer
+
+    print("INPUT SIZE BOUNDARIES")
+    print(max_x-min_x)
+    print(max_y-min_y)
+
+    if max_x-min_x <= 500 >= max_y - min_y:
+        # return a single bbox for requests that fit into a single 500*500m bounding box.
+        print("Single bbox")
+        return [gpd.GeoDataFrame(geometry=[box(min_x, min_y, max_x, max_y)], crs="EPSG:25832")]
 
     bbox_matrix = []
 

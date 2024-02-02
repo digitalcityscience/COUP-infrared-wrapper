@@ -4,8 +4,8 @@ services:
     build: .
     env_file: .env
     ports:
-      - '8004:80'
-    command: uvicorn infrared_wrapper_api.api.main:app --host 0.0.0.0 --port 80 --reload
+      - '8004:8004'
+    command: uvicorn infrared_wrapper_api.api.main:app --host 0.0.0.0 --port 8004 --reload
     networks:
       &network_mode
       - bridgenet
@@ -26,12 +26,12 @@ services:
     networks: *network_mode
     volumes:
       - "./redis/data:/data"
-  
+
   celery-worker-wind-api-v2:
     container_name: celery-worker-wind-api-v2
     build: .
     restart: "always"
-    command: celery -A infrared_wrapper_api.tasks worker --loglevel=info
+    command: celery -A infrared_wrapper_api.tasks worker --loglevel=info --concurrency=4
     networks: *network_mode
     env_file:
       - .env
