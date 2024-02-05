@@ -27,11 +27,18 @@ def create_simulation_task(
         bbox: box,
         sim_type: SimType
 ) -> WindSimulationTask | SunSimulationTask:
+    columns = list(buildings_gdf.columns)
+    buildings_gdf = buildings_gdf.drop(columns=[col for col in columns if not col in ["geometry", "building_height", "index"]])
+    buildings_gdf = buildings_gdf.clip(bbox)
+    buildings_gdf = buildings_gdf.explode(ignore_index=True)
+    buildings_json = json.loads(buildings_gdf.to_json())
+
+    simulation_area_json = json.loads(bbox.to_json())
 
     if sim_type == "wind":
         return WindSimulationTask(
-            simulation_area=json.loads(bbox.to_json()),
-            buildings=json.loads(buildings_gdf.clip(bbox).to_json()),
+            simulation_area=simulation_area_json,
+            buildings=buildings_json,
             wind_speed=task_def["wind_speed"],
             wind_direction=task_def["wind_direction"],
             # TODO add original calculation area here. and when task finished - clip to it.
@@ -39,9 +46,11 @@ def create_simulation_task(
 
     if sim_type == "sun":
         return SunSimulationTask(
-            simulation_area=json.loads(bbox.to_json()),
-            buildings=json.loads(buildings_gdf.clip(bbox).to_json())
+            simulation_area=simulation_area_json,
+            buildings=buildings_json
         )
+
+    raise NotImplementedError(f"Simulation type {sim_type} not known.")
 
 
 def create_bbox_matrix(buildings: gpd.GeoDataFrame) -> List[gpd.GeoDataFrame]:
