@@ -33,10 +33,16 @@ class InfraredProject:
         minx, miny, _, _ = simulation_area_gdf.total_bounds
         buildings_gdf["geometry"] = buildings_gdf.translate(-minx, -miny)
 
-        create_new_buildings(
-            snapshot_uuid=self.snapshot_uuid,
-            new_buildings=json.loads(buildings_gdf.explode(index_parts=True).to_json())  # creating multipolygons fails
-        )
+        buildings_gdf = buildings_gdf.explode(ignore_index=True).reset_index()  # Infrared doesnt like MultiGeoms
+        building_chunks = [buildings_gdf.loc[i:i + 10 - 1, :] for i in range(0, len(buildings_gdf), 10)]
+
+        for buildings in building_chunks:
+            # send max. 10 buildings per request to INFRARED
+            print(f"sending chunk with {len(buildings)} buildings")
+            create_new_buildings(
+                snapshot_uuid=self.snapshot_uuid,
+                new_buildings=json.loads(buildings.to_json())  # creating multipolygons fails
+            )
 
     # deletes all buildings for project on endpoint
     def delete_all_buildings(self):
@@ -46,10 +52,13 @@ class InfraredProject:
             print(f"no buildings to delete for project {self.project_uuid}")
             return
 
-        delete_buildings(
-            self.snapshot_uuid,
-            building_uuids
-        )
+        building_chunks = [building_uuids[i:i + 10] for i in range(0, len(building_uuids), 10)]
+
+        for chunk in building_chunks:
+            delete_buildings(
+                self.snapshot_uuid,
+                chunk
+            )
 
     # deletes all streets for project on endpoint
     def delete_all_streets(self):
@@ -64,6 +73,6 @@ class InfraredProject:
             streets_uuids
         )
 
-    def delete_project(self):
+    def delete_this_project(self):
         # delete project at infrared.
         delete_project(self.project_uuid)

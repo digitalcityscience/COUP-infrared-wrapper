@@ -21,8 +21,8 @@ def cleanup_project(project_uuid: str):
         print("Cleaning up project {}".format(project_uuid))
         infrared_project.delete_all_buildings()
     except Exception as e:
-        print("cleaning up failed. creating a new project instead.")
-        infrared_project.delete_project()
+        print(f"cleaning up failed. creating a new project instead. Error: {e}")
+        infrared_project.delete_this_project()
         create_new_empty_project()
     else:
         # set project to be not busy again.
@@ -59,6 +59,7 @@ def create_new_empty_project():
     update_infrared_project_status_in_redis(project_uuid=new_project_uuid, status=ProjectStatus.IDLE.value)
 
     print("created new empty project")
+
 
 def cleanup_infrared_projects():
     all_project_uuids = get_all_cut_prototype_projects_uuids()

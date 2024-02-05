@@ -276,10 +276,13 @@ def trigger_sun_simulation(snapshot_uuid) -> str:
 
 
 @retry(
-    stop=stop_after_attempt(10),  # Maximum number of attempts
-    wait=wait_exponential(multiplier=1, max=20),  # Exponential backoff with a maximum wait time of 10 seconds
-    retry=retry_if_exception_type(KeyError)  # Retry only on APIError exceptions
-)
+    stop=stop_after_delay(60),  # Maximum number of attempts
+    wait=wait_chain(*[wait_fixed(3) for i in range(1)] +
+                     [wait_fixed(2) for j in range(5)] +
+                     [wait_fixed(1) for k in range(50)]
+                    ),  # Wait 3 seconds first then retry faster.
+    retry = retry_if_exception_type(KeyError)  # Retry only on APIError exceptions
+    )
 def get_analysis_output(project_uuid: str, snapshot_uuid: str, result_uuid: str) -> dict:
     query = get_analysis_output_query(
         snapshot_uuid=snapshot_uuid,
