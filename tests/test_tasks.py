@@ -1,5 +1,3 @@
-import json
-
 import pytest
 import geopandas as gpd
 import pandas as pd
@@ -17,7 +15,8 @@ from infrared_wrapper_api.models.calculation_input import WindSimulationTask
 from infrared_wrapper_api.config import settings
 from infrared_wrapper_api.tasks import task__do_simulation
 from tests.fixtures import sample_simulation_input, sample_simulation_area, sample_building_data_multiple_bbox, \
-    sample_building_data_single_bbox, sample_simulation_result_single_bbox_geojson, sample_simulation_input_multiple_bboxes
+    sample_building_data_single_bbox, sample_simulation_result_single_bbox_geojson, \
+    sample_simulation_input_multiple_bboxes
 
 
 def test_create_bbox_matrix_multiple_bbox(sample_building_data_multiple_bbox):
@@ -143,18 +142,17 @@ def test_task_is_cached(sample_simulation_area, sample_building_data_single_bbox
 
 
 def test_simulation_result_single_bbox(sample_simulation_input, sample_simulation_result_single_bbox_geojson):
-    # TODO SET TO TRUE TO RUN TEST
+    # SET TO TRUE TO RUN TEST
     run_test_that_costs_infrared_tokens = True
 
     if not run_test_that_costs_infrared_tokens:
         pytest.skip("Skipping test_simulation_result_single_bbox")
 
     """
-    Tests real INFRARED Simulation and compares result to known result.
+    Tests real INFRARED WIND COMFORT Simulation and compares result to known result.
     """
     import time
     start_time = time.time()
-
 
     simulation_tasks = create_simulation_tasks(sample_simulation_input, "wind")
     assert len(simulation_tasks) == 1
@@ -175,71 +173,97 @@ def test_simulation_result_single_bbox(sample_simulation_input, sample_simulatio
 
         print("SIMULATION TIME TOOK {:.2f} seconds".format(time.time() - start_time))
 
-        with open("single_bbox_sim_result_2.json", "w") as f:
-            json.dump(result, f)
-
         assert result == sample_simulation_result_single_bbox_geojson
 
         # dont forget to clean up project_uuid
         cleanup_project(project_uuid)
 
 
-def test_simulation_result_multiple_bbox(sample_simulation_input_multiple_bboxes):
-    # TODO SET TO TRUE TO RUN TEST
-    run_test_that_costs_infrared_tokens = True
-    if not run_test_that_costs_infrared_tokens:
-        pytest.skip("Skipping test_simulation_result_multiple_bbox")
+def test_simulation_result_single_bbox_sun(sample_simulation_input):
+    # SET TO TRUE TO RUN TEST
+    run_test_that_costs_infrared_tokens = False
 
+    if not run_test_that_costs_infrared_tokens:
+        pytest.skip("Skipping test_simulation_result_single_bbox")
 
     """
-    Tests real INFRARED Simulation and compares result to known result.
+    Tests real INFRARED SUN Simulation and compares result to known result.
     """
     import time
-    import random
+    start_time = time.time()
 
-    simulation_tasks = create_simulation_tasks(sample_simulation_input_multiple_bboxes, "wind")
-    # TODO hier stehen irgendwie multipolygons in den buildings. WO auch immer die herkommen: explode!
 
-    assert len(simulation_tasks) == 4
-
-    all_project_uuids = get_all_cut_prototype_projects_uuids()
-    sample_size = len(simulation_tasks)
-
-    test_uuids = random.sample(all_project_uuids, sample_size)
+    simulation_tasks = create_simulation_tasks(sample_simulation_input, "sun")
+    assert len(simulation_tasks) == 1
 
     with patch(
             "infrared_wrapper_api.dependencies.cache.get",
             return_value={"status": ProjectStatus.IDLE.value}
     ) as mock_cache_get, \
         patch("infrared_wrapper_api.dependencies.cache.put") as mock_cache_put:
+        project_uuid = find_idle_infrared_project(get_all_cut_prototype_projects_uuids())
 
-        try:
-            for sim_task_id, simulation_task in enumerate(simulation_tasks):
-                start_time = time.time()
+        print("running simulation on Infrared project {}".format(project_uuid))
 
-                print("running simulation on Infrared project {}".format(test_uuids[sim_task_id]))
+        result = do_simulation(
+            project_uuid=project_uuid,
+            sim_task=simulation_tasks[0].dict()
+        )
 
-                with open(f"sim_task{sim_task_id}.json", "w") as f:
-                    json.dump(simulation_task.dict(), f)
+        print("SIMULATION TIME TOOK {:.2f} seconds".format(time.time() - start_time))
 
-                result = do_simulation(
-                    project_uuid=test_uuids[sim_task_id],
-                    sim_task=simulation_task.dict()
-                )
+        assert len(result["features"]) > 0
 
-                print("SIMULATION TIME TOOK {:.2f} seconds".format(time.time() - start_time))
+        # dont forget to clean up project_uuid
+        cleanup_project(project_uuid)
 
-                with open(f"multiple_bbox_sim_result_{sim_task_id}", "w") as f:
-                    json.dump(result, f)
 
-                ## TODO assert results
-                ##assert result == sample_simulation_result_single_bbox_geojson
-        except Exception as e:
-            print(f"Something went wrong {e}")
+def test_simulation_result_multiple_bbox(sample_simulation_input_multiple_bboxes):
+    # SET TO TRUE TO RUN TEST
+    run_test_that_costs_infrared_tokens = False
+    if not run_test_that_costs_infrared_tokens:
+        pytest.skip("Skipping test_simulation_result_multiple_bbox")
 
-        finally:
-            for uuid in test_uuids:
-                try:
-                    cleanup_project(uuid)
-                except:
-                    print("cannot clean up project {}".format(uuid))
+    import time
+    import random
+
+    simulation_tasks = create_simulation_tasks(sample_simulation_input_multiple_bboxes, "wind")
+    assert len(simulation_tasks) == 4
+
+    # run the calculation and compare results
+    all_project_uuids = get_all_cut_prototype_projects_uuids()
+    sample_size = len(simulation_tasks)
+    test_uuids = random.sample(all_project_uuids, sample_size)
+    results = []
+
+    with patch(
+            "infrared_wrapper_api.dependencies.cache.get",
+            return_value={"status": ProjectStatus.IDLE.value}
+    ) as mock_cache_get, \
+        patch(
+            "infrared_wrapper_api.infrared_wrapper.infrared.setup.setup_infrared.update_infrared_project_status_in_redis"
+        ) as mock_update_status, \
+        patch("infrared_wrapper_api.dependencies.cache.put") as mock_cache_put:
+
+        for sim_task_id, simulation_task in enumerate(simulation_tasks):
+            print(f"SIM TASK {sim_task_id} - running simulation on Infrared project {test_uuids[sim_task_id]}")
+            start_time = time.time()
+
+            result = do_simulation(
+                project_uuid=test_uuids[sim_task_id],
+                sim_task=simulation_task.dict()
+            )
+            print("SIMULATION TIME TOOK {:.2f} seconds".format(time.time() - start_time))
+
+            assert len(result["features"]) > 0
+            for feat in result["features"]:
+                assert feat["properties"].get("value", None) in [0, 0.2, 0.4, 0.6, 0.8, 1]
+
+            results.append(result)
+
+        # finally clean up
+        for uuid in test_uuids:
+            try:
+                cleanup_project(uuid)
+            except:
+                print("cannot clean up project {}".format(uuid))

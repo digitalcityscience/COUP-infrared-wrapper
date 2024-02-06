@@ -2,7 +2,8 @@ import os
 import requests
 import time
 from typing import List
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, wait_chain, wait_fixed, \
+    stop_after_delay
 
 from infrared_wrapper_api.infrared_wrapper.infrared import queries
 from infrared_wrapper_api.infrared_wrapper.infrared.queries import run_wind_simulation_query, get_analysis_output_query, \
@@ -71,10 +72,10 @@ class InfraredConnector:
 
 connector = InfraredConnector()
 
-
 """
 PROJECT CREATION / DELETION / IDS
 """
+
 
 @retry(
     stop=stop_after_attempt(5),  # Maximum number of attempts
@@ -135,7 +136,7 @@ def get_project_name(project_uuid) -> str:
 
     snapshot = connector.execute_query(query)
     name_path = ["data", "getSnapshotsByProjectUuid", "infraredSchema", "clients", connector.user_uuid,
-                            "projects", project_uuid, "projectName"]
+                 "projects", project_uuid, "projectName"]
 
     return get_value(snapshot, name_path)
 
@@ -146,14 +147,15 @@ def delete_project(project_uuid):
 
     print(f"project deleted {project_uuid}")
 
+
 """
 BUILDINGS AND STREETS
 """
 
 
 @retry(
-    stop=stop_after_attempt(5),  # Maximum number of attempts
-    wait=wait_exponential(multiplier=1, max=20),  # Exponential backoff with a maximum wait time of 10 seconds
+    stop=stop_after_attempt(2),  # Maximum number of attempts
+    wait=wait_fixed(2),  # Exponential backoff with a maximum wait time of 10 seconds
     retry=retry_if_exception_type(InfraredException)  # Retry only on APIError exceptions
 )
 def create_new_buildings(snapshot_uuid: str, new_buildings: dict):
@@ -196,7 +198,7 @@ def get_all_building_uuids_for_project(project_uuid: str, snapshot_uuid: str) ->
     all_geometries = get_all_project_geometry_objects(project_uuid, snapshot_uuid)
 
     try:
-        return all_geometries["buildings"].keys()
+        return list(all_geometries["buildings"].keys())
     except Exception:
         print(f"could not get buildings for project uuid {project_uuid}")
         return []
@@ -281,8 +283,8 @@ def trigger_sun_simulation(snapshot_uuid) -> str:
                      [wait_fixed(2) for j in range(5)] +
                      [wait_fixed(1) for k in range(50)]
                     ),  # Wait 3 seconds first then retry faster.
-    retry = retry_if_exception_type(KeyError)  # Retry only on APIError exceptions
-    )
+    retry=retry_if_exception_type(KeyError)  # Retry only on APIError exceptions
+)
 def get_analysis_output(project_uuid: str, snapshot_uuid: str, result_uuid: str) -> dict:
     query = get_analysis_output_query(
         snapshot_uuid=snapshot_uuid,

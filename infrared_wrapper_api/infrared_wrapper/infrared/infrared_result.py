@@ -41,8 +41,6 @@ class InfraredResult:
         )
 
     def result_to_geojson(self):
-
-
         geojson = {
             "type": "FeatureCollection",
             "features": []
@@ -94,10 +92,11 @@ def georeference_infrared_result(
         raw_result: dict,
         total_bounds_simulation_area: Tuple[float, ...]
     ) -> dict:
-
-    import time
-    start_time = time.time()
-
+    """
+    Converts the result to a polygonized geojson
+    Crops the buffer from the result, as values towards results' edges get unreliable.
+    Dissolves pixels with same values into polygons
+    """
     result = InfraredResult.from_raw_result(raw_result)
 
     result_geojson = result.result_to_geojson()
@@ -117,7 +116,6 @@ def georeference_infrared_result(
     # reproject and return geojson dict
     result_json = json.loads(result_gdf.to_crs("EPSG:4326").to_json())
 
-    print("Finished georeferencing result in {} seconds".format(time.time() - start_time))
     return result_json
 
 
