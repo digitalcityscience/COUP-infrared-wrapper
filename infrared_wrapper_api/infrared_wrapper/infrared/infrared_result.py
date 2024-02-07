@@ -3,6 +3,8 @@ import numpy as np
 from typing import List, Tuple
 import geopandas as gpd
 from shapely.geometry import box
+import topojson as tp
+
 from infrared_wrapper_api.config import settings
 
 
@@ -112,6 +114,11 @@ def georeference_infrared_result(
 
     # merge neighboring fields with same value
     result_gdf = result_gdf.dissolve(by="value").reset_index()
+
+    # simplify the geometries with topojson (does not create gaps between simplified geoms)
+    topo = tp.Topology(result_gdf, prequantize=False)
+    result_gdf = topo.toposimplify(3).to_gdf()  # tolerance of 3 just delivered prettiest results
+    result_gdf.geometry = result_gdf.geometry.buffer(0)  # fix invalid geoms
 
     # reproject and return geojson dict
     result_json = json.loads(result_gdf.to_crs("EPSG:4326").to_json())
