@@ -26,15 +26,6 @@ def sample_simulation_result_single_bbox_geojson():
     with open("../infrared_wrapper_api/models/jsons/infrared_result_single_bbox.geojson", "r") as f:
         return json.load(f)
 
-# @pytest.fixture
-# def sample_all_building_data():
-#     """
-#     for local tests with extended buildings only
-#     """
-#     print(os.getcwd())
-#     with open("../infrared_wrapper_api/models/jsons/__all__buildings.json", "r") as f:
-#         geojson = json.load(f)
-#         return reproject_geojson(geojson, "EPSG:4326", "EPSG:25832")
 
 @pytest.fixture
 def sample_building_data_multiple_bbox():

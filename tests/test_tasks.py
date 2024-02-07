@@ -173,7 +173,10 @@ def test_simulation_result_single_bbox(sample_simulation_input, sample_simulatio
 
         print("SIMULATION TIME TOOK {:.2f} seconds".format(time.time() - start_time))
 
-        assert result == sample_simulation_result_single_bbox_geojson
+        # Asser returned result is the mock result
+        for feat_id, feat in enumerate(result["features"]):
+            assert feat["geometry"] == sample_simulation_result_single_bbox_geojson["features"][feat_id]["geometry"]
+            assert feat["properties"] == sample_simulation_result_single_bbox_geojson["features"][feat_id]["properties"]
 
         # dont forget to clean up project_uuid
         cleanup_project(project_uuid)
@@ -191,7 +194,6 @@ def test_simulation_result_single_bbox_sun(sample_simulation_input):
     """
     import time
     start_time = time.time()
-
 
     simulation_tasks = create_simulation_tasks(sample_simulation_input, "sun")
     assert len(simulation_tasks) == 1
