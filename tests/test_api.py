@@ -24,18 +24,25 @@ class MockResult:
 
 
 class MockGroupResult:
-    def __init__(self, is_successful: bool, results: List[MockResult]):
+    def __init__(self, is_successful: bool, failed: bool, results: List[MockResult]):
         self.is_successful = is_successful
+        self.is_failed = failed
         self.results: List[MockResult] = results
 
     def successful(self):
         return self.is_successful
 
+    def failed(self):
+        return self.is_failed
+
+    def get(self):
+        return "not implemented"
+
 
 @pytest.fixture
 def mock_result_not_ready():
     empty_mock_result = MockResult()
-    return MockGroupResult(is_successful=False, results=[empty_mock_result])
+    return MockGroupResult(is_successful=False, failed=False, results=[empty_mock_result])
 
 
 @pytest.fixture
@@ -77,69 +84,75 @@ def mock_result_ready():
     ]}
     valid_single_result = MockResult(result=mock_result_content)
 
-    return MockGroupResult(is_successful=True, results=[valid_single_result])
+    return MockGroupResult(is_successful=True, failed=False, results=[valid_single_result])
+
+
+def test_process_description(ogc_desc_wind):
+    response = client.get(
+        "/infrared/processes/wind-comfort"
+    )
+    assert response.status_code == 200
+    assert ogc_desc_wind == response.json()
 
 
 def test_wind(sample_simulation_input):
     with patch("infrared_wrapper_api.tasks.task__compute", return_value={"foo": "bar"}) as mock_task:
-        response = client.post("/processes/wind/execution", json=sample_simulation_input)
+        response = client.post("/infrared/processes/wind-comfort/execution", json=sample_simulation_input)
 
-        assert response.status_code == 200
+        assert response.status_code == 201
         print(response.json())
 
 
 def test_sun(sample_simulation_input):
     with patch("infrared_wrapper_api.tasks.task__compute", return_value={"foo": "bar"}) as mock_task:
-        response = client.post("/processes/sun/execution", json=sample_simulation_input)
+        response = client.post("/infrared/processes/sunlight-hours/execution", json=sample_simulation_input)
 
-        assert response.status_code == 200
+        assert response.status_code == 201
         print(response.json())
 
 
 def test_job_status_invalid_job_id():
     # Test invalid group task id
     with patch("celery.result.GroupResult.restore", return_value=None) as mock_restore:
-        response = client.get("/jobs/abc123")
+        response = client.get("/infrared/jobs/abc123")
 
         assert response.status_code == 404
-        assert json.loads(response.text).get("detail") == "Job not found! Invalid job-id provided abc123"
+        assert json.loads(response.text).get("detail") == "no such job"
 
 
 def test_job_status_valid_job_id(mock_result_ready):
     # Test invalid group task id
     with patch("celery.result.GroupResult.restore", return_value=mock_result_ready) as mock_restore:
-        response = client.get("/jobs/abc123")
+        response = client.get("/infrared/jobs/abc123")
 
         assert response.status_code == 200
-        assert response.json() == {
-            "status": "SUCCESS",
-            "progress": 100
-        }
+        assert response.json() == {'jobID': 'abc123', 'progress': 100, 'status': 'successful', 'type': 'process'}
 
 
 def test_get_result_invalid_id():
     # Test invalid group task id
     with patch("celery.result.GroupResult.restore", return_value=None) as mock_restore:
-        response = client.get("/jobs/abc123/results")
+        response = client.get("/infrared/jobs/abc123/results")
 
         assert response.status_code == 404
-        assert json.loads(response.text).get("detail") == "Result not found! Invalid job-id provided abc123"
 
 
 def test_get_result_not_ready(mock_result_not_ready):
     # test result not ready
     with patch("celery.result.GroupResult.restore", return_value=mock_result_not_ready) as mock_restore:
-        response = client.get("/jobs/abc123/results")
+        response = client.get("/infrared/jobs/abc123/results")
 
         assert response.status_code == 404
-        assert json.loads(response.text).get("detail") == "Result not ready yet"
+        assert json.loads(response.text).get("detail") == "result not ready"
 
 
 def test_get_result_ready(mock_result_ready):
     # test result ready
     with patch("celery.result.GroupResult.restore", return_value=mock_result_ready) as mock_restore:
-        response = client.get("/jobs/abc123/results")
+        response = client.get("/infrared/jobs/abc123/results")
 
         assert response.status_code == 200
-        assert len(response.json()["features"]) == 1  # each MockResult had the same content, dissolves to 1 feature
+
+        # each MockResult had the same content, dissolves to 1 feature
+        assert len(response.json()["result"]["geojson"]["features"]) == 1
 

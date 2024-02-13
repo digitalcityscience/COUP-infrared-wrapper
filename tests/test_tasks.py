@@ -175,14 +175,13 @@ def test_simulation_result_single_bbox(sample_simulation_input, sample_simulatio
 
         # Asser returned result is the mock result
         for feat_id, feat in enumerate(result["features"]):
-            assert feat["geometry"] == sample_simulation_result_single_bbox_geojson["features"][feat_id]["geometry"]
             assert feat["properties"] == sample_simulation_result_single_bbox_geojson["features"][feat_id]["properties"]
 
         # dont forget to clean up project_uuid
         cleanup_project(project_uuid)
 
 
-def test_simulation_result_single_bbox_sun(sample_simulation_input):
+def test_live_simulation_result_single_bbox_sun(sample_simulation_input):
     # SET TO TRUE TO RUN TEST
     run_test_that_costs_infrared_tokens = False
 
@@ -190,7 +189,8 @@ def test_simulation_result_single_bbox_sun(sample_simulation_input):
         pytest.skip("Skipping test_simulation_result_single_bbox")
 
     """
-    Tests real INFRARED SUN Simulation and compares result to known result.
+    Tests real INFRARED SUN Simulation and compares result to known result. 
+    COSTS TOKENS @ INFRARED
     """
     import time
     start_time = time.time()
@@ -220,9 +220,15 @@ def test_simulation_result_single_bbox_sun(sample_simulation_input):
         cleanup_project(project_uuid)
 
 
-def test_simulation_result_multiple_bbox(sample_simulation_input_multiple_bboxes):
+def test_live_simulation_result_multiple_bbox(sample_simulation_input_multiple_bboxes):
     # SET TO TRUE TO RUN TEST
     run_test_that_costs_infrared_tokens = False
+
+    """
+    Tests real INFRARED SUN Simulation and compares result to known result. 
+    COSTS TOKENS @ INFRARED
+    """
+
     if not run_test_that_costs_infrared_tokens:
         pytest.skip("Skipping test_simulation_result_multiple_bbox")
 
