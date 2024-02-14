@@ -7,11 +7,18 @@ from infrared_wrapper_api.api.endpoints import router as tasks_router
 from infrared_wrapper_api.config import settings
 from infrared_wrapper_api.infrared_wrapper.infrared.setup.setup_infrared import setup_infrared, cleanup_infrared_projects
 
+
+API_PREFIX = "/infrared"
+
 app = FastAPI(
     title=settings.title,
     descriprition=settings.description,
     version=settings.version,
+    redoc_url=f"{API_PREFIX}/redoc",
+    docs_url=f"{API_PREFIX}/docs",
+    openapi_url=f"{API_PREFIX}/openapi.json",
 )
+
 
 origins = [
     # "http://localhost",
@@ -28,20 +35,20 @@ app.add_middleware(
 )
 
 
-@app.get("/health_check", tags=["ROOT"])
+@app.get(f"{API_PREFIX}/health_check", tags=["ROOT"])
 async def health_check():
     return "ok"
 
 
 @app.on_event("startup")
 @repeat_every(seconds=60, wait_first=True)  # every minute
-@app.get("/cleanup_infrared", tags=["ROOT"])
+@app.get(f"{API_PREFIX}/cleanup_infrared", tags=["ROOT"])
 def clean_up_infrared():
     print("Cleaning up infrared projects...")
     return cleanup_infrared_projects()
 
 
-app.include_router(tasks_router, prefix="/infrared")
+app.include_router(tasks_router, prefix=API_PREFIX)
 
 
 if __name__ == "__main__":
