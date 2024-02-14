@@ -19,14 +19,14 @@ app = FastAPI(
 )
 
 
-@app.get("/health_check", tags=["ROOT"])
+@app.get(f"{API_PREFIX}/health_check", tags=["ROOT"])
 async def health_check():
     return "ok"
 
 
 @app.on_event("startup")
 @repeat_every(seconds=60, wait_first=True)  # every minute
-@app.get("/cleanup_infrared", tags=["ROOT"])
+@app.get(f"{API_PREFIX}/cleanup_infrared", tags=["ROOT"])
 def clean_up_infrared():
     print("Cleaning up infrared projects...")
     return cleanup_infrared_projects()
