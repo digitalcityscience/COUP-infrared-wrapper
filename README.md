@@ -2,6 +2,8 @@
 This API wraps the INFRARED.CITY service.
 It offers an OGC-API-Processes conform service, with geojson based inputs/outputs, while handling all communication with INFRARED.
 
+In general this is a celery-based app using 3 containers each: api,worker, redis. The api container excepts requests and creates tasks in the redis db. Workers look for tasks in the redis db, calculate result and publish it in redis. Results (also cached ones) can be accessed via the api container that get’s the result from the redis db.
+
 ## Wind-Comfort AND Sunlight-Hour Simulations
 
 ### TILING
