@@ -7,11 +7,18 @@ from infrared_wrapper_api.api.endpoints import router as tasks_router
 from infrared_wrapper_api.config import settings
 from infrared_wrapper_api.infrared_wrapper.infrared.setup.setup_infrared import setup_infrared, cleanup_infrared_projects
 
+
+API_PREFIX = "/infrared"
+
 app = FastAPI(
     title=settings.title,
     descriprition=settings.description,
     version=settings.version,
+    redoc_url=f"{API_PREFIX}/redoc",
+    docs_url=f"{API_PREFIX}/docs",
+    openapi_url=f"{API_PREFIX}/openapi.json",
 )
+
 
 origins = [
     # "http://localhost",
@@ -41,7 +48,7 @@ def clean_up_infrared():
     return cleanup_infrared_projects()
 
 
-app.include_router(tasks_router, prefix="/infrared")
+app.include_router(tasks_router, prefix=API_PREFIX)
 
 
 if __name__ == "__main__":
