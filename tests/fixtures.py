@@ -60,3 +60,7 @@ def sample_simulation_input_multiple_bboxes(sample_building_data_multiple_bbox):
     }
 
 
+@pytest.fixture
+def ogc_desc_wind():
+    with open("../infrared_wrapper_api/models/jsons/ogc_process_description_wind-comfort.json", "r") as f:
+        return json.load(f)
