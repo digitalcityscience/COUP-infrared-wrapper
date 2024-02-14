@@ -17,23 +17,23 @@ class NoIdleProjectException(Exception):
     wait=wait_exponential(multiplier=1, max=30),  # Exponential backoff with a maximum wait time of 20 seconds
     retry=retry_if_exception_type(NoIdleProjectException)  # Retry only on APIError exceptions
 )
-def find_idle_infrared_project(all_project_keys) -> str:
-    for project_key in all_project_keys:
-        project_status: ProjectStatus = cache.get(key=project_key)
-        print(project_status)
-        if not project_status or not project_status["is_busy"]:
-            update_infrared_project_status_in_redis(project_uuid=project_key, is_busy=True)
-            print(f" using infrared project {project_key}")
-            return project_key
+def find_idle_infrared_project(all_project_uuids) -> str:
+    for project_uuid in all_project_uuids:
+        project_info = cache.get(key=project_uuid)
+        print(f"project info: {project_info}")
+        if not project_info or project_info.get("status", None) == ProjectStatus.IDLE.value:
+            update_infrared_project_status_in_redis(project_uuid=project_uuid, status=ProjectStatus.BUSY.value)
+            print(f" using infrared project {project_uuid}")
+            return project_uuid
 
     raise NoIdleProjectException("All infrared projects seem to be in use!")
 
 
-def update_infrared_project_status_in_redis(project_uuid: str, is_busy: bool):
+def update_infrared_project_status_in_redis(project_uuid: str, status: str):
     """
     marks whether a infrared project can be used or is busy with some other simulation
     """
-    cache.put(key=project_uuid, value={"is_busy": is_busy})
+    cache.put(key=project_uuid, value={"status": status})
 
 
 def unify_group_result(group_result: GroupResult) -> dict:

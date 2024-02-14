@@ -2,7 +2,8 @@ import os
 import requests
 import time
 from typing import List
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, wait_chain, wait_fixed, \
+    stop_after_delay
 
 from infrared_wrapper_api.infrared_wrapper.infrared import queries
 from infrared_wrapper_api.infrared_wrapper.infrared.queries import run_wind_simulation_query, get_analysis_output_query, \
@@ -13,7 +14,7 @@ from infrared_wrapper_api.utils import is_cut_prototype_project
 
 
 class InfraredException(Exception):
-    "Raised when no idle project found"
+    "Raised for errors in infrared communication"
     pass
 
 
@@ -71,10 +72,10 @@ class InfraredConnector:
 
 connector = InfraredConnector()
 
-
 """
 PROJECT CREATION / DELETION / IDS
 """
+
 
 @retry(
     stop=stop_after_attempt(5),  # Maximum number of attempts
@@ -135,9 +136,16 @@ def get_project_name(project_uuid) -> str:
 
     snapshot = connector.execute_query(query)
     name_path = ["data", "getSnapshotsByProjectUuid", "infraredSchema", "clients", connector.user_uuid,
-                            "projects", project_uuid, "projectName"]
+                 "projects", project_uuid, "projectName"]
 
     return get_value(snapshot, name_path)
+
+
+def delete_project(project_uuid):
+    query = queries.delete_project(project_uuid, connector.user_uuid)
+    connector.execute_query(query)
+
+    print(f"project deleted {project_uuid}")
 
 
 """
@@ -146,8 +154,8 @@ BUILDINGS AND STREETS
 
 
 @retry(
-    stop=stop_after_attempt(5),  # Maximum number of attempts
-    wait=wait_exponential(multiplier=1, max=20),  # Exponential backoff with a maximum wait time of 10 seconds
+    stop=stop_after_attempt(2),  # Maximum number of attempts
+    wait=wait_fixed(2),  # Exponential backoff with a maximum wait time of 10 seconds
     retry=retry_if_exception_type(InfraredException)  # Retry only on APIError exceptions
 )
 def create_new_buildings(snapshot_uuid: str, new_buildings: dict):
@@ -190,7 +198,7 @@ def get_all_building_uuids_for_project(project_uuid: str, snapshot_uuid: str) ->
     all_geometries = get_all_project_geometry_objects(project_uuid, snapshot_uuid)
 
     try:
-        return all_geometries["buildings"].keys()
+        return list(all_geometries["buildings"].keys())
     except Exception:
         print(f"could not get buildings for project uuid {project_uuid}")
         return []
@@ -214,7 +222,7 @@ def delete_buildings(snapshot_uuid: str, building_uuids: List[str]):
     all_success = all(entry.get("success", False) for entry in response["data"].values())
 
     if not all_success:
-        print(f"COULD NOT DELETE ALL BUILDINGS {response.json()}")
+        print(f"COULD NOT DELETE ALL BUILDINGS {response}")
 
 
 def delete_streets(snapshot_uuid: str, streets_uuids: List[str]):
@@ -225,7 +233,7 @@ def delete_streets(snapshot_uuid: str, streets_uuids: List[str]):
     all_success = all(entry.get("success", False) for entry in response["data"].values())
 
     if not all_success:
-        print(f"COULD NOT DELETE ALL STREETS {response.json()}")
+        print(f"COULD NOT DELETE ALL STREETS {response}")
 
 
 """
@@ -270,8 +278,11 @@ def trigger_sun_simulation(snapshot_uuid) -> str:
 
 
 @retry(
-    stop=stop_after_attempt(10),  # Maximum number of attempts
-    wait=wait_exponential(multiplier=1, max=20),  # Exponential backoff with a maximum wait time of 10 seconds
+    stop=stop_after_delay(60),  # Maximum number of attempts
+    wait=wait_chain(*[wait_fixed(3) for i in range(1)] +
+                     [wait_fixed(2) for j in range(5)] +
+                     [wait_fixed(1) for k in range(50)]
+                    ),  # Wait 3 seconds first then retry faster.
     retry=retry_if_exception_type(KeyError)  # Retry only on APIError exceptions
 )
 def get_analysis_output(project_uuid: str, snapshot_uuid: str, result_uuid: str) -> dict:

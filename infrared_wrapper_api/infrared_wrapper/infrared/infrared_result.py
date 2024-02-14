@@ -3,6 +3,8 @@ import numpy as np
 from typing import List, Tuple
 import geopandas as gpd
 from shapely.geometry import box
+import topojson as tp
+
 from infrared_wrapper_api.config import settings
 
 
@@ -41,8 +43,6 @@ class InfraredResult:
         )
 
     def result_to_geojson(self):
-
-
         geojson = {
             "type": "FeatureCollection",
             "features": []
@@ -94,6 +94,11 @@ def georeference_infrared_result(
         raw_result: dict,
         total_bounds_simulation_area: Tuple[float, ...]
     ) -> dict:
+    """
+    Converts the result to a polygonized geojson
+    Crops the buffer from the result, as values towards results' edges get unreliable.
+    Dissolves pixels with same values into polygons
+    """
     result = InfraredResult.from_raw_result(raw_result)
 
     result_geojson = result.result_to_geojson()
@@ -110,8 +115,15 @@ def georeference_infrared_result(
     # merge neighboring fields with same value
     result_gdf = result_gdf.dissolve(by="value").reset_index()
 
+    # simplify the geometries with topojson (does not create gaps between simplified geoms)
+    topo = tp.Topology(result_gdf, prequantize=False)
+    result_gdf = topo.toposimplify(3).to_gdf()  # tolerance of 3 just delivered prettiest results
+    result_gdf.geometry = result_gdf.geometry.buffer(0)  # fix invalid geoms
+
     # reproject and return geojson dict
-    return json.loads(result_gdf.to_crs("EPSG:4326").to_json())
+    result_json = json.loads(result_gdf.to_crs("EPSG:4326").to_json())
+
+    return result_json
 
 
 def crop_buffer(gdf_with_metric_crs: gpd.GeoDataFrame):

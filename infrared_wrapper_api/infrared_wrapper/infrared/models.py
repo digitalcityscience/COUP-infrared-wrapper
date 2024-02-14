@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from dataclasses_json import dataclass_json
 from typing import Literal
+from enum import Enum
 
 SimType = Literal["wind", "sun"]
 
-@dataclass_json
-@dataclass
-class ProjectStatus:
-    is_busy: bool
 
+class ProjectStatus(Enum):
+    IDLE = "idle"
+    BUSY = "busy"
+    TO_BE_CLEANED = "to_be_cleaned"

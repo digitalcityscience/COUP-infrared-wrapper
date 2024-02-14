@@ -1,12 +1,11 @@
-from celery import signals, group, chain
+from celery import group
 from celery.utils.log import get_task_logger
 from fastapi.encoders import jsonable_encoder
 
 from infrared_wrapper_api.dependencies import cache, celery_app
 from infrared_wrapper_api.infrared_wrapper.data_preparation import create_simulation_tasks
 from infrared_wrapper_api.infrared_wrapper.infrared.infrared_connector import get_all_cut_prototype_projects_uuids
-from infrared_wrapper_api.infrared_wrapper.infrared.infrared_project import InfraredProject
-from infrared_wrapper_api.infrared_wrapper.infrared.models import SimType
+from infrared_wrapper_api.infrared_wrapper.infrared.models import SimType, ProjectStatus
 from infrared_wrapper_api.infrared_wrapper.infrared.utils import reproject_geojson
 from infrared_wrapper_api.api.utils import find_idle_infrared_project, update_infrared_project_status_in_redis
 from infrared_wrapper_api.infrared_wrapper.infrared.simulation import do_simulation
@@ -22,6 +21,7 @@ It will create a group task for all simulation_tasks
 """
 @celery_app.task()
 def task__compute(simulation_input: dict, sim_type: SimType) -> dict:
+    print(f"RECEIVED SIMULATION REQUEST OF TYPE {sim_type}")
 
     # reproject buildings to metric system for internal use
     simulation_input["buildings"] = reproject_geojson(
@@ -59,21 +59,25 @@ def task__do_simulation(project_uuid: str, sim_task: dict) -> dict:
     """
     Doing a simulation for a 500*500meters simulation area.
     """
+
+    # RETURN FROM CACHE IF POSSIBLE
+    if result := cache.get(key=sim_task["celery_key"]):
+        logger.info(
+            f"Result fetched from cache with key: {sim_task['celery_key']}"
+        )
+
+        return result
+
+    # RUN SIMULATION
     result = {}
     try:
-        # check if result for this task is already cached. Return from cache.
-        if result := cache.get(key=sim_task["celery_key"]):
-            logger.info(
-                f"Result fetched from cache with key: {sim_task['celery_key']}"
-            )
-        else:
-            logger.info(
-                f"Starting calculation ...  Result with key: {sim_task['celery_key']} not found in cache."
-            )
-            result = do_simulation(
-                project_uuid=project_uuid,
-                sim_task=sim_task
-            )
+        logger.info(
+            f"Starting calculation ...  Result with key: {sim_task['celery_key']} not found in cache."
+        )
+        result = do_simulation(
+            project_uuid=project_uuid,
+            sim_task=sim_task
+        )
     except Exception as e:
         logger.error(
             f"simulation for  sim_task {sim_task} failed with exception {e}"
@@ -84,20 +88,7 @@ def task__do_simulation(project_uuid: str, sim_task: dict) -> dict:
             cache.put(key=sim_task.get("celery_key"), value=result)
             logger.info(f"Saved or renewed result with key {sim_task.get('celery_key')} to cache.")
     finally:
-        # trigger project cleanup
-        task__cleanup_project.delay(project_uuid=project_uuid)
+        # mark project as completed
+        update_infrared_project_status_in_redis(project_uuid=project_uuid, status=ProjectStatus.TO_BE_CLEANED.value)
 
-        # return result without waiting for cleanup
         return result
-
-
-@celery_app.task()
-def task__cleanup_project(project_uuid: str):
-    logger.info(f"Finally: deleting all buildings for project {project_uuid}")
-    # clean up project
-    infrared_project = InfraredProject(project_uuid)
-    infrared_project.delete_all_buildings()
-
-    # set project to be not busy again.
-    update_infrared_project_status_in_redis(project_uuid=project_uuid, is_busy=False)
-    logger.info(f"Set project to 'is_busy=False' for project: {project_uuid}")

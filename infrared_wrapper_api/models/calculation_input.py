@@ -8,7 +8,7 @@ from infrared_wrapper_api.models.base import BaseModelStrict
 from infrared_wrapper_api.utils import hash_dict, load_json_file
 
 JSONS_DIR = Path(__file__).parent / "jsons"
-BUILDINGS = JSONS_DIR / "buildings.json"
+BUILDINGS = JSONS_DIR / "buildings_single_bbox.json"
 
 
 

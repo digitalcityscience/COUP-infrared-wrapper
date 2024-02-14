@@ -1,0 +1,63 @@
+{
+  "id": "wind-comfort",
+  "title": "Wind Comfort Simulation",
+  "description": "Wind Comfort Simulation",
+  "outputTransmission": [
+    "value"
+  ],
+  "jobControlOptions": [
+    "async-execute"
+  ],
+  "keywords":  ["Wind", "Comfort", "Simulation"],
+  "inputs": {
+    "buildings": {
+      "title": "Buildings",
+      "description": "Buildings",
+      "schema": {
+        "type": "object",
+        "title": "Buildings"
+      },
+      "minOccurs": 1,
+      "maxOccurs": 1
+    },
+    "wind_speed": {
+      "title": "Wind Speed",
+      "description": "Maximum speed in m/s (0-30)",
+      "schema": {
+        "type": "integer",
+        "maximum": 30.0,
+        "minimum": 0.0,
+        "title": "Wind Speed",
+        "description": "Maximum speed in m/s (0-30)"
+      },
+      "minOccurs": 1,
+      "maxOccurs": 1
+    },
+    "wind_direction": {
+      "title": "Wind Direction",
+      "description": "Wind direction in °",
+      "schema": {
+        "type": "integer",
+        "maximum": 360.0,
+        "minimum": 0.0,
+        "title": "Wind Direction",
+        "description": "Wind direction in °"
+      },
+      "minOccurs": 1,
+      "maxOccurs": 1
+    }
+  },
+  "output": {
+    "result": {
+      "geojson": {
+        "title": "Result geojson with column 'value' for the results",
+        "description": "Wind Comfort                          The 'wind comfort' service predicts a plane of Lawson Criteria categories,                          given an input wind direction and speed. The returned normalised values represent                          categories as seen in the following table:value lawson criteria category                          0.0 'Sitting Long'                          0.2 'Sitting Short'                          0.4 'Walking Slow'                         0.6 'Walking Fast'                         0.8 'Uncomfortable'                         1.0 'Dangerous'                         ",
+        "schema": {
+          "type": "object",
+          "contentMediaType": "application/geo+json",
+          "$ref": "https://geojson.org/schema/FeatureCollection.json"
+        }
+      }
+    }
+  }
+}

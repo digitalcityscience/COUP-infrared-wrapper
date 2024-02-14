@@ -16,7 +16,7 @@ def do_simulation(
     project_uuid: str,
     sim_task: dict
 ) -> dict:
-    infrared_project = prepare_infrared_project(project_uuid, sim_task)
+    infrared_project = update_buildings_at_infrared(project_uuid, sim_task)
     sim_type = sim_task["sim_type"]
 
     if sim_type == "wind":
@@ -40,7 +40,7 @@ def do_simulation(
     return collect_and_format_result(infrared_project, sim_task, result_uuid)
 
 
-def prepare_infrared_project(project_uuid, task: dict) -> InfraredProject:
+def update_buildings_at_infrared(project_uuid, task: dict) -> InfraredProject:
     logger.info(f"Updating buildings at infrared for project {project_uuid}")
     infrared_project = InfraredProject(project_uuid)
     infrared_project.update_buildings_at_infrared(

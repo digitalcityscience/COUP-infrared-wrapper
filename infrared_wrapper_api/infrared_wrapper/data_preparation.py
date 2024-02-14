@@ -27,30 +27,49 @@ def create_simulation_task(
         bbox: box,
         sim_type: SimType
 ) -> WindSimulationTask | SunSimulationTask:
+    columns = list(buildings_gdf.columns)
+    buildings_gdf = buildings_gdf.drop(columns=[col for col in columns if not col in ["geometry", "building_height", "index"]])
+    buildings_gdf = buildings_gdf.clip(bbox)
+    buildings_gdf = simplify_building_input(buildings_gdf)
+    buildings_json = json.loads(buildings_gdf.to_json())
+
+    simulation_area_json = json.loads(bbox.to_json())
 
     if sim_type == "wind":
         return WindSimulationTask(
-            simulation_area=json.loads(bbox.to_json()),
-            buildings=json.loads(buildings_gdf.clip(bbox).to_json()),
+            simulation_area=simulation_area_json,
+            buildings=buildings_json,
             wind_speed=task_def["wind_speed"],
             wind_direction=task_def["wind_direction"],
+            # TODO add original calculation area here. and when task finished - clip to it.
         )
 
     if sim_type == "sun":
         return SunSimulationTask(
-            simulation_area=json.loads(bbox.to_json()),
-            buildings=json.loads(buildings_gdf.clip(bbox).to_json())
+            simulation_area=simulation_area_json,
+            buildings=buildings_json
         )
+
+    raise NotImplementedError(f"Simulation type {sim_type} not known.")
 
 
 def create_bbox_matrix(buildings: gpd.GeoDataFrame) -> List[gpd.GeoDataFrame]:
     """
-    creates a matrix of overlapping bboxes covering the project area polygon
+    creates a matrix of overlapping bboxes covering the area containing buildings (EPSG:25832)
     """
     total_area = buildings.unary_union.convex_hull
     min_x, min_y, max_x, max_y = total_area.bounds
     size = settings.infrared_calculation.cropped_simulation_area_size
     buffer = settings.infrared_calculation.simulation_area_buffer
+
+    print("INPUT SIZE BOUNDARIES")
+    print(max_x - min_x)
+    print(max_y - min_y)
+
+    if max_x - min_x <= 500 >= max_y - min_y:
+        # return a single bbox for requests that fit into a single 500*500m bounding box.
+        print("Single bbox")
+        return [gpd.GeoDataFrame(geometry=[box(min_x, min_y, max_x, max_y)], crs="EPSG:25832")]
 
     bbox_matrix = []
 
@@ -73,3 +92,14 @@ def create_bbox_matrix(buildings: gpd.GeoDataFrame) -> List[gpd.GeoDataFrame]:
                 bbox_matrix.append(gpd.GeoDataFrame(geometry=[bbox], crs="EPSG:25832"))
 
     return bbox_matrix
+
+
+def simplify_building_input(buildings_in_bbox: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    buildings_in_bbox["building_height"] = round(buildings_in_bbox["building_height"], -1)  # round to next 10
+    buildings_in_bbox["building_height_dissolve"] = buildings_in_bbox["building_height"]
+    buildings_in_bbox.geometry = buildings_in_bbox.simplify(tolerance=1)
+    buildings_in_bbox = buildings_in_bbox.dissolve(by="building_height_dissolve")
+
+    return buildings_in_bbox
+
+

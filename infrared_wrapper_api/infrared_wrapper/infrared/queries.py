@@ -35,6 +35,21 @@ def create_project_query(user_uuid, name, sw_lat, sw_long, bbox_size, resolution
     })
 
 
+def delete_project(user_uuid, project_uuid):
+    template = Template("""
+                mutation {
+                  deleteProject (
+                    uuid: "$project_uuid"
+                    userUuid: "$user_uuid"
+                  ) {
+                    success
+                  }
+                }
+            """)
+
+    return template.safe_substitute({"project_uuid": project_uuid, "user_uuid": user_uuid})
+
+
 def create_buildings(snapshot_uuid, buildings: List[dict]):
     def get_building_geom(bld):
         """
