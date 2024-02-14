@@ -3,7 +3,7 @@ VENV = .venv
 PYTHON = $(VENV)/bin/python3
 PIP = $(VENV)/bin/pip
 
-create-env:
+make-env:
 	python3 -m venv $(VENV)
 
 venv: create-env
