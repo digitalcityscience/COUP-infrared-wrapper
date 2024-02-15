@@ -2,7 +2,7 @@ import logging
 import os
 
 from celery.result import GroupResult
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.openapi.utils import get_openapi
 
@@ -63,14 +63,19 @@ async def get_processes_json(process_id: str = None) -> dict:
 )
 async def execute_wind(
         calculation_input: WindSimulationInput,
+        response: Response
 ):
     calculation_task = WindSimulationInput(**calculation_input.dict())
     result = tasks.task__compute.delay(simulation_input=jsonable_encoder(calculation_task), sim_type="wind")
+    job_id = result.get()
+
+    # OGC Processes Requirement 34 | /req/core/process-execute-success-async
+    response.headers["Location"] = f"/infrared/jobs/{job_id}"
 
     return {
             "processID": "wind-comfort",
             "type": "process",
-            "jobID": result.get(),
+            "jobID": job_id,
             "status": StatusInfo.ACCEPTED.value
     }
 
@@ -83,14 +88,19 @@ async def execute_wind(
 )
 async def execute_sun(
         calculation_input: SunSimulationInput,
+        response: Response
 ):
     calculation_task = SunSimulationInput(**calculation_input.dict())
     result = tasks.task__compute.delay(jsonable_encoder(calculation_task), "sun")
+    job_id = result.get()
+
+    # OGC Processes Requirement 34 | /req/core/process-execute-success-async
+    response.headers["Location"] = f"/infrared/jobs/{job_id}"
 
     return {
             "processID": "sunlight-hours",
             "type": "process",
-            "jobID": result.get(),
+            "jobID": job_id,
             "status": StatusInfo.ACCEPTED.value
     }
 
