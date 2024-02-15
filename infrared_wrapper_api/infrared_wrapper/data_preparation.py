@@ -66,10 +66,12 @@ def create_bbox_matrix(buildings: gpd.GeoDataFrame) -> List[gpd.GeoDataFrame]:
     print(max_x - min_x)
     print(max_y - min_y)
 
-    if max_x - min_x <= 500 >= max_y - min_y:
-        # return a single bbox for requests that fit into a single 500*500m bounding box.
-        print("Single bbox")
+    if max_x - min_x <= 510 >= max_y - min_y:
+        # return a single bbox for requests that fit into a single 500*500m bounding box. (few meters more are ok)
+        print("Single bbox simulation")
         return [gpd.GeoDataFrame(geometry=[box(min_x, min_y, max_x, max_y)], crs="EPSG:25832")]
+    else:
+        print("this simulation is split into multiple")
 
     bbox_matrix = []
 
