@@ -6,6 +6,6 @@ flake8==6.1.0
 
 # Tests
 pytest==7.4.0
-requests==2.31.0
+requests==2.32.0
 freezegun==1.2.2
 dotenv
