@@ -110,9 +110,9 @@ After the image is built and containers initialise, you can access the following
 
 | Service    | URL                                       | Access                                      |
 |------------|-------------------------------------------|---------------------------------------------|
-| Swagger UI | http://0.0.0.0:8002/infrared/docs         | Not password protected                       |
-| Redoc      | http://0.0.0.0:8002/infrared/redoc        | Not password protected                       |
-| OpenAPI    | http://0.0.0.0:8002/infrared/openapi.json | Not password protected                       |
+| Swagger UI | http://0.0.0.0:8004/infrared/docs         | Not password protected                       |
+| Redoc      | http://0.0.0.0:8004/infrared/redoc        | Not password protected                       |
+| OpenAPI    | http://0.0.0.0:8004/infrared/openapi.json | Not password protected                       |
 
 ### Tests 
 
