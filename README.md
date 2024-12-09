@@ -4,6 +4,55 @@ It offers an OGC-API-Processes conform service, with geojson based inputs/output
 
 In general this is a celery-based app using 3 containers each: api,worker, redis. The api container excepts requests and creates tasks in the redis db. Workers look for tasks in the redis db, calculate result and publish it in redis. Results (also cached ones) can be accessed via the api container that get’s the result from the redis db.
 
+## Development (edited 2024.11.25 by Vinh Ngu)
+
+First, docker compose is required to run the application. To install docker compose, follow the instructions [here](https://docs.docker.com/compose/install/).
+### Local Development
+
+Configure the environment variables in the `.env` file. The `.env` file should be created based on the `.env.example` file.
+```bash
+# General
+DEBUG=False
+ENVIRONMENT=LOCALDEV # Options: LOCALDEV, PROD
+
+# App Metadata
+APP_TITLE="CUT Prototype - WIND API"
+APP_DESCRIPTION="API to calculate wind comfort."
+APP_VERSION="0.1.0"
+
+# INFRARED-API (external service)
+INFRARED_URL=https://infrared.url # Eg. "https://dev.infrared.city"
+INFRARED_USERNAME=username # Username to access the Infrared API
+INFRARED_PASSWORD=password # Password to access the Infrared API
+
+# Celery
+CELERY_DEFAULT_QUEUE=wind
+
+# Celery[Redis]
+REDIS_HOST=redis-wind-api
+REDIS_PORT=6379
+REDIS_DB=0
+REDIS_PASSWORD="supersecret-password"  # Redis password
+REDIS_SSL=false
+REDIS_CACHE_TTL_DAYS=30
+```
+
+Now the docker-images needs to be build first.
+```bash
+docker-compose build
+```
+
+After the images are built, the application can be started.
+```bash
+docker-compose up -d
+```
+
+Make sure the application is running.
+```bash
+docker-compose ps
+```
+
+
 ## Wind-Comfort AND Sunlight-Hour Simulations
 
 ### TILING
