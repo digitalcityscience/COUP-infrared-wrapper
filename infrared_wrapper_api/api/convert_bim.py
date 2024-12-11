@@ -4,9 +4,15 @@ import shapely
 from dotbimpy import *
 import uuid
 
-path_buildings = 'infrared_wrapper_api/models/jsons/buildings_multiple_bboxes.json'
+filename = 'Updated_Zhytomyr-buildings_no_type_change_Dayanna_30.10'
+path_buildings = f'infrared_wrapper_api/models/jsons/{filename}.json'
 
 gdf = gpd.read_file(path_buildings)
+
+# Rename B_height in case of Chernivtsi file
+gdf = gdf.rename(columns={'B_height':'building_height'})
+gdf = gdf.loc[~gdf['building_height'].isna()]
+gdf = gdf.explode()
 gdf = gdf.to_crs('EPSG:25832')
 centroid = gdf['geometry'].union_all().centroid
 centroid = shapely.get_coordinates(centroid).tolist()[0]
@@ -71,5 +77,4 @@ file_info = {
 }
 
 file = File("1.0.0",meshes=meshes,elements=elements,info=file_info)
-file.save("buildings.bim")
-
+file.save(f"{filename}.bim")
