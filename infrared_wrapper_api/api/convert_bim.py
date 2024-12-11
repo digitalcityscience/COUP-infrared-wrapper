@@ -1,9 +1,8 @@
-import pandas as pd
 import geopandas as gpd
 import pyvista as pv
-import json
 import shapely
-import simplekml
+from dotbimpy import *
+import uuid
 
 path_buildings = 'infrared_wrapper_api/models/jsons/buildings_multiple_bboxes.json'
 
@@ -13,13 +12,10 @@ centroid = gdf['geometry'].union_all().centroid
 centroid = shapely.get_coordinates(centroid).tolist()[0]
 c_x = centroid[0]
 c_y = centroid[1]
-print(centroid)
+meshes = []
+elements = []
 
-plotter = pv.Plotter()
-combined_mesh = pv.MultiBlock()
-
-from shapely.geometry import Polygon, MultiPolygon
-
+counter = 0
 for _, row in gdf.iterrows():
     geometry = row['geometry']
     height = row['building_height']
@@ -44,18 +40,36 @@ for _, row in gdf.iterrows():
     x_coords, y_coords = zip(*[(x, y) for x, y, _ in exterior])
     if max(x_coords) - min(x_coords) == 0 or max(y_coords) - min(y_coords) == 0:
         print("Degenerate geometry: all points lie on a line or single point")
-        continue
-    
+        continue    
 
     # Create and triangulate PolyData
     base_polygon = pv.PolyData(exterior).delaunay_2d()
     
     extrusion = base_polygon.extrude([0, 0, height], capping=True)
-    combined_mesh.append(extrusion)
-    plotter.add_mesh(extrusion, color="white", opacity=0.8)
-unified_mesh = combined_mesh.combine()
+    extrusion = extrusion.triangulate()
+    
 
-print(unified_mesh)
+    extrusion = extrusion.extract_surface()
+    coordinates = extrusion.points.flatten().tolist()
+    indices = extrusion.regular_faces.flatten().tolist()
 
-unified_mesh().save("buildings.vtk")
-plotter.show()
+    vector = Vector(x=0,y=0,z=0)
+    rotation = Rotation(qx=0, qy=0, qz=0, qw=1.0)
+    geomtype = 'Block'
+    color = Color(r=120, g=166, b=171, a=180)
+    info = {'Name':f'building-{counter}'}
+    guid = str(uuid.uuid4())
+
+    mesh = Mesh(mesh_id=counter,coordinates=coordinates,indices=indices)
+    element = Element(mesh_id=counter,vector=vector,rotation=rotation,guid=guid,type=geomtype,color=color,info=info)
+    meshes.append(mesh)
+    elements.append(element)
+    counter=counter+1
+
+file_info = {
+    "Author":"DCS"
+}
+
+file = File("1.0.0",meshes=meshes,elements=elements,info=file_info)
+file.save("buildings.bim")
+
