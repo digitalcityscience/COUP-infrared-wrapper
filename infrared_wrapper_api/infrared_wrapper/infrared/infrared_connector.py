@@ -1,4 +1,5 @@
 import os
+import json
 import requests
 import time
 from typing import List
@@ -8,7 +9,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 from infrared_wrapper_api.infrared_wrapper.infrared import queries
 from infrared_wrapper_api.infrared_wrapper.infrared.queries import run_wind_simulation_query, get_analysis_output_query, \
     run_sunlight_hours_service_query, activate_sun_service_query
-from infrared_wrapper_api.infrared_wrapper.infrared.utils import get_value
+from infrared_wrapper_api.infrared_wrapper.infrared.utils import get_value, decompress_base64
 from infrared_wrapper_api.config import settings
 from infrared_wrapper_api.utils import is_cut_prototype_project
 
@@ -16,6 +17,33 @@ from infrared_wrapper_api.utils import is_cut_prototype_project
 class InfraredException(Exception):
     "Raised for errors in infrared communication"
     pass
+
+class InfraredConnectorV2:
+    url = os.getenv("INFRARED_URL")
+    headers = {
+        "x-api-key":os.getenv("INFRARED_API_KEY"),
+        "Content-Type": "text/plain",
+        "X-Infrared-Encoding": "gzip",      
+    }
+
+    def execute_query(self,query:str):
+        response = requests.post(url=self.url,headers=self.headers,data=query)
+
+        if response.status_code != 200:
+            raise ValueError(f"Request failed with status code {response.status_code}. {response.text} ")
+
+        response=response.json()
+
+        compressed_json_base64 = response['result']
+        try:
+            decompressed_data = decompress_base64(compressed_json_base64)
+        except ValueError as e:
+            print(e)
+
+        decompressed_json=json.loads(decompressed_data)
+        response['result']=decompressed_json  
+
+        return response
 
 
 class InfraredConnector:
