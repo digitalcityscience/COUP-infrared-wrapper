@@ -59,7 +59,7 @@ docker-compose ps
 The maximum simulatable area of an INFRARED simulation is 500m*500m . 
 However results in the egdes of these areas are unreliable as the simulation is unaware of the neighboring building context. 
 If the total extend of the submitted buildings geojson input is less than 500m*500m the input gets simulated as 1 single tile.
-Larger areas are split into overlapping bboxes. A celery-group task is created and each bbox is simulated as an independent project at INFRARED. 
+Larger areas [are split]([url](https://github.com/digitalcityscience/COUP-infrared-wrapper/blob/34ad59a678bf0b7959a84b9238a7d36f55303836/infrared_wrapper_api/infrared_wrapper/data_preparation.py#L56C5-L56C23)) into overlapping bboxes. A celery-group task is created and each bbox is simulated as an independent project at INFRARED. 
 Results are merged upon collection.
 
 Example for splitting the buildings input into multiple overlapping bboxes.
